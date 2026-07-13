@@ -393,7 +393,7 @@ function defaultTemplate(){
   const t={};
   ['1','2','3','4','5'].forEach(d=>{t[d]=wdBase();});
   // terça: terapia no lugar do cardio
-  t['2']=t['2'].map(b=>b.id==='card'?{id:'tera',start:'18:00',end:'19:00',name:'Terapia',front:'',type:'rotina'}:b);
+  t['2']=t['2'].map(b=>b.id==='card'?{id:'tera',start:'17:00',end:'18:00',name:'Terapia',front:'',type:'rotina'}:b);
   t['6']=[
    {id:'cin1',start:'08:30',end:'09:15',name:'Coringa inglês',front:'ielts',type:'estudo'},
    {id:'tre', start:'09:30',end:'11:00',name:'Treino',front:'treino',type:'treino'},
@@ -425,10 +425,21 @@ function migrate(){
   if(t&&t.wd){
     const nt={};
     ['1','2','3','4','5'].forEach(d=>{nt[d]=JSON.parse(JSON.stringify(t.wd));});
-    nt['2']=nt['2'].map(b=>b.id==='card'?{id:'tera',start:b.start,end:b.end,name:'Terapia',front:'',type:'rotina'}:b);
+    nt['2']=nt['2'].map(b=>b.id==='card'?{id:'tera',start:'17:00',end:'18:00',name:'Terapia',front:'',type:'rotina'}:b);
     nt['6']=t.sat||[];nt['0']=t.sun||[];
-    S.settings.template=nt;save();
+    S.settings.template=nt;
   }
+  /* normalização (idempotente): nome antigo do cardio e horário da terapia */
+  const fixName=b=>{if(b&&b.name==='Cardio · ter: terapia')b.name='Cardio Hyrox/CrossFit';};
+  const fixTera=b=>{if(b&&b.id==='tera'&&b.start==='18:00'){b.start='17:00';b.end='18:00';}};
+  Object.keys(S.settings.template).forEach(d=>{
+    (S.settings.template[d]||[]).forEach(b=>{fixName(b);if(d==='2')fixTera(b);});
+  });
+  Object.keys(S.days).forEach(k=>{
+    const day=S.days[k];if(!day||!day.tpl)return;
+    day.tpl.forEach(b=>{fixName(b);if(dowKey(k)==='2')fixTera(b);});
+  });
+  save();
 }
 function save(){try{localStorage.setItem(K,JSON.stringify(S));}catch(e){}}
 
