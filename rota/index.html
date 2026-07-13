@@ -8,7 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ROTA">
 <meta name="theme-color" content="#0A0A0C">
-<title>ROTA · Band 7.0</title>
+<title>ROTA · Band 7.0</title><!-- v1.0.1 -->
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;800&display=swap" rel="stylesheet">
@@ -271,7 +272,8 @@ details summary{cursor:pointer;font-size:13px;color:var(--tx2);padding:6px 0}
     <div class="daytabs chips" id="dayTabs"></div>
     <div id="tplRows"></div>
     <button class="addt" id="tplAdd">+ adicionar bloco</button>
-    <p><small>Mudanças no template valem a partir de amanhã.</small></p>
+    <div class="frow"><select id="copyTo" style="flex:1;max-width:none"></select><button class="btn dim" id="copyDay" style="width:auto;padding:9px 16px">Copiar</button></div>
+    <p><small>Cada dia da semana tem seu próprio template. Mudanças valem a partir de amanhã.</small></p>
     <button class="btn dim" id="tplToday">Aplicar a hoje (reseta os checks de hoje)</button>
   </div>
   <div class="sec">
@@ -373,8 +375,8 @@ const DEF_TASKS={
   cin2:['Sessão de inglês'],
   cco:['Radar da Banca / questões']
 };
-function defaultTemplate(){return{
-wd:[
+/* template por dia da semana: chaves '0'(dom) a '6'(sáb) */
+function wdBase(){return[
  {id:'rit', start:'06:15',end:'06:45',name:'Ritual matinal',front:'',type:'rotina'},
  {id:'b1',  start:'07:00',end:'08:00',name:'B1 · Inglês geral (Evolve)',front:'ielts',type:'estudo'},
  {id:'b2',  start:'08:15',end:'09:00',name:'B2 · Concurso',front:'concurso',type:'estudo'},
@@ -383,20 +385,27 @@ wd:[
  {id:'musc',start:'11:45',end:'13:15',name:'Musculação',front:'treino',type:'treino'},
  {id:'b5',  start:'14:15',end:'15:15',name:'B5 · Revisão do dia',front:'mista',type:'estudo'},
  {id:'b6',  start:'15:30',end:'16:45',name:'B6 · IELTS (Mindset 3)',front:'ielts',type:'estudo'},
- {id:'card',start:'18:00',end:'19:00',name:'Cardio · ter: terapia',front:'treino',type:'treino'},
+ {id:'card',start:'18:00',end:'19:00',name:'Cardio Hyrox/CrossFit',front:'treino',type:'treino'},
  {id:'b7',  start:'20:45',end:'21:45',name:'B7 · Magoosh (cronometrado)',front:'ielts',type:'estudo'},
  {id:'jan', start:'21:45',end:'22:15',name:'Janela estratégica',front:'',type:'rotina'}
-],
-sat:[
- {id:'cin1',start:'08:30',end:'09:15',name:'Coringa inglês',front:'ielts',type:'estudo'},
- {id:'tre', start:'09:30',end:'11:00',name:'Treino',front:'treino',type:'treino'},
- {id:'cin2',start:'14:30',end:'15:30',name:'Coringa inglês',front:'ielts',type:'estudo'},
- {id:'cco', start:'16:00',end:'17:30',name:'Coringa concurso',front:'concurso',type:'estudo'}
-],
-sun:[
- {id:'tre', start:'09:30',end:'11:00',name:'Treino',front:'treino',type:'treino'},
- {id:'org', start:'15:00',end:'16:00',name:'Organização da semana',front:'',type:'rotina'}
-]};}
+];}
+function defaultTemplate(){
+  const t={};
+  ['1','2','3','4','5'].forEach(d=>{t[d]=wdBase();});
+  // terça: terapia no lugar do cardio
+  t['2']=t['2'].map(b=>b.id==='card'?{id:'tera',start:'18:00',end:'19:00',name:'Terapia',front:'',type:'rotina'}:b);
+  t['6']=[
+   {id:'cin1',start:'08:30',end:'09:15',name:'Coringa inglês',front:'ielts',type:'estudo'},
+   {id:'tre', start:'09:30',end:'11:00',name:'Treino',front:'treino',type:'treino'},
+   {id:'cin2',start:'14:30',end:'15:30',name:'Coringa inglês',front:'ielts',type:'estudo'},
+   {id:'cco', start:'16:00',end:'17:30',name:'Coringa concurso',front:'concurso',type:'estudo'}
+  ];
+  t['0']=[
+   {id:'tre', start:'09:30',end:'11:00',name:'Treino',front:'treino',type:'treino'},
+   {id:'org', start:'15:00',end:'16:00',name:'Organização da semana',front:'',type:'rotina'}
+  ];
+  return t;
+}
 
 /* ================= ESTADO ================= */
 let S;
@@ -407,8 +416,19 @@ function defaults(){return{
   celebrated:{ielts:0,concurso:0}
 };}
 function load(){
-  try{const raw=localStorage.getItem(K);if(raw){S=Object.assign(defaults(),JSON.parse(raw));return;}}catch(e){}
+  try{const raw=localStorage.getItem(K);if(raw){S=Object.assign(defaults(),JSON.parse(raw));migrate();return;}}catch(e){}
   S=defaults();
+}
+/* migra template antigo (wd/sat/sun) para o formato por dia da semana */
+function migrate(){
+  const t=S.settings.template;
+  if(t&&t.wd){
+    const nt={};
+    ['1','2','3','4','5'].forEach(d=>{nt[d]=JSON.parse(JSON.stringify(t.wd));});
+    nt['2']=nt['2'].map(b=>b.id==='card'?{id:'tera',start:b.start,end:b.end,name:'Terapia',front:'',type:'rotina'}:b);
+    nt['6']=t.sat||[];nt['0']=t.sun||[];
+    S.settings.template=nt;save();
+  }
 }
 function save(){try{localStorage.setItem(K,JSON.stringify(S));}catch(e){}}
 
@@ -423,7 +443,7 @@ function addDays(k,n){const d=parseKey(k);d.setDate(d.getDate()+n);return keyOf(
 function diffDays(a,b){return Math.round((parseKey(b)-parseKey(a))/86400000);}
 function mins(t){const p=t.split(':');return +p[0]*60+ +p[1];}
 function nowMins(){const d=new Date();return d.getHours()*60+d.getMinutes();}
-function dowGroup(k){const d=parseKey(k).getDay();return d===0?'sun':(d===6?'sat':'wd');}
+function dowKey(k){return String(parseKey(k).getDay());}
 const DOWS=['dom','seg','ter','qua','qui','sex','sáb'];
 const MONS=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 function fmtDay(k){const d=parseKey(k);return DOWS[d.getDay()]+', '+d.getDate()+' '+MONS[d.getMonth()];}
@@ -439,8 +459,7 @@ function defTasks(b){
 function resolveFront(f){return f==='mista'?'concurso':f;}
 function ensureDay(key){
   if(S.days[key])return S.days[key];
-  const grp=dowGroup(key);
-  const tpl=JSON.parse(JSON.stringify(S.settings.template[grp]||[]));
+  const tpl=JSON.parse(JSON.stringify(S.settings.template[dowKey(key)]||[]));
   const day={tpl,blocks:{},openingSeen:false,obstacle:'',intention:'',qi:nextQuote()};
   tpl.forEach(b=>{
     if(b.type==='rotina')return;
@@ -481,7 +500,7 @@ function dayScore(day){
 function dayHasFront(k,f){
   const day=S.days[k];
   if(day)return day.tpl.some(b=>b.type==='estudo'&&day.blocks[b.id]&&day.blocks[b.id].front===f);
-  return(S.settings.template[dowGroup(k)]||[]).some(b=>b.type==='estudo'&&resolveFront(b.front)===f);
+  return(S.settings.template[dowKey(k)]||[]).some(b=>b.type==='estudo'&&resolveFront(b.front)===f);
 }
 function dayFrontDone(k,f){
   const day=S.days[k];if(!day)return false;
@@ -776,8 +795,9 @@ function showOpening(day){
 }
 
 /* ================= CONFIGURAÇÕES ================= */
-let tplTab='wd';
-const TAB_LABEL={wd:'Seg–sex',sat:'Sábado',sun:'Domingo'};
+const DAY_ORDER=['1','2','3','4','5','6','0'];
+const TAB_LABEL={'1':'Seg','2':'Ter','3':'Qua','4':'Qui','5':'Sex','6':'Sáb','0':'Dom'};
+let tplTab=DAY_ORDER.includes(String(new Date().getDay()))?String(new Date().getDay()):'1';
 function openSettings(){
   $('#vHome').classList.add('hidden');
   $('#vSettings').classList.remove('hidden');
@@ -793,9 +813,13 @@ function closeSettings(){
   renderAll();
 }
 function renderTplEditor(){
-  $('#dayTabs').innerHTML=Object.keys(TAB_LABEL).map(g=>
+  $('#dayTabs').innerHTML=DAY_ORDER.map(g=>
     '<button class="chip'+(g===tplTab?' on':'')+'" data-g="'+g+'">'+TAB_LABEL[g]+'</button>').join('');
   $('#dayTabs').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{tplTab=c.dataset.g;renderTplEditor();});
+  $('#copyTo').innerHTML='<option value="">copiar '+TAB_LABEL[tplTab]+' para…</option>'+
+    DAY_ORDER.filter(g=>g!==tplTab).map(g=>'<option value="'+g+'">'+TAB_LABEL[g]+'</option>').join('')+
+    '<option value="wk">todos os dias úteis</option>';
+  if(!S.settings.template[tplTab])S.settings.template[tplTab]=[];
   const rows=S.settings.template[tplTab];
   $('#tplRows').innerHTML=rows.map((b,i)=>
     '<div class="trow">'+
@@ -847,6 +871,14 @@ function init(){
   $('#sMind').onchange=e=>{S.settings.mindsetTotal=Math.max(1,+e.target.value||8);save();};
   $('#tplAdd').onclick=()=>{
     S.settings.template[tplTab].push({id:'x'+Date.now().toString(36),start:'12:00',end:'13:00',name:'Novo bloco',front:'concurso',type:'estudo'});
+    save();renderTplEditor();
+  };
+  $('#copyDay').onclick=()=>{
+    const v=$('#copyTo').value;if(!v)return;
+    const targets=v==='wk'?['1','2','3','4','5'].filter(d=>d!==tplTab):[v];
+    const lbl=v==='wk'?'todos os dias úteis':TAB_LABEL[v];
+    if(!confirm('Substituir o template de '+lbl+' pelo de '+TAB_LABEL[tplTab]+'?'))return;
+    targets.forEach(d=>{S.settings.template[d]=JSON.parse(JSON.stringify(S.settings.template[tplTab]));});
     save();renderTplEditor();
   };
   $('#tplToday').onclick=()=>{
