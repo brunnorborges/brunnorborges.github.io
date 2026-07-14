@@ -55,6 +55,32 @@ small{color:var(--tx2)}
 #oIntent{width:100%;margin-top:14px;background:rgba(20,20,24,.8)}
 #oEnter{margin-top:16px}
 
+/* ---------- hero ---------- */
+#hero{position:relative;overflow:hidden}
+.hbg{position:absolute;inset:0;background-size:cover;background-position:center;filter:grayscale(55%) contrast(1.05)}
+.hveil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,12,.78) 0%,rgba(10,10,12,.55) 45%,#0A0A0C 100%)}
+.hin{position:relative;max-width:520px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top)) 16px 16px}
+.hrow{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--tx2);letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.hquote{font-weight:300;font-size:17px;line-height:1.45;margin:16px 0 4px;color:var(--tx);max-width:44ch}
+.hauthor{font-size:12px;color:var(--tx2)}
+.hjourney{margin-top:18px}
+.hjourney b{font-size:16px;font-weight:800;letter-spacing:-.01em}
+.hbar{height:3px;background:rgba(255,255,255,.14);border-radius:2px;margin-top:9px}
+.hbar i{display:block;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--ielts),var(--conc));transition:width .6s}
+
+/* ---------- glow (atmosfera) ---------- */
+.node.done.f-ielts .dot{box-shadow:0 0 14px rgba(79,195,247,.45)}
+.node.done.f-concurso .dot{box-shadow:0 0 14px rgba(255,183,77,.45)}
+.node.done.f-treino .dot{box-shadow:0 0 14px rgba(102,187,106,.4)}
+.node.done.f-ielts .ncard{border-color:rgba(79,195,247,.32)}
+.node.done.f-concurso .ncard{border-color:rgba(255,183,77,.32)}
+.node.done.f-treino .ncard{border-color:rgba(102,187,106,.3)}
+.card.f-ielts{border-top:2px solid rgba(79,195,247,.55)}
+.card.f-concurso{border-top:2px solid rgba(255,183,77,.55)}
+.card.f-ielts .bign{text-shadow:0 0 28px rgba(79,195,247,.3)}
+.card.f-concurso .bign{text-shadow:0 0 28px rgba(255,183,77,.3)}
+.ring.full{filter:drop-shadow(0 0 7px rgba(102,187,106,.55))}
+
 /* ---------- home header ---------- */
 #top{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:14px;
   padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top));
@@ -229,6 +255,16 @@ details summary{cursor:pointer;font-size:13px;color:var(--tx2);padding:6px 0}
 
 <!-- ============ HOME ============ -->
 <div id="vHome">
+  <div id="hero">
+    <div class="hbg" id="hbg"></div>
+    <div class="hveil"></div>
+    <div class="hin">
+      <div class="hrow"><span id="dayline"></span><button class="icon" id="btnSet" aria-label="configurações">&#9881;</button></div>
+      <div class="hquote" id="hQuote"></div>
+      <div class="hauthor" id="hAuthor"></div>
+      <div class="hjourney"><b id="hDay"></b><div class="hbar"><i id="hFill"></i></div></div>
+    </div>
+  </div>
   <div id="top">
     <svg class="ring" viewBox="0 0 44 44" aria-label="score do dia">
       <circle class="rbg" cx="22" cy="22" r="18"/>
@@ -245,10 +281,8 @@ details summary{cursor:pointer;font-size:13px;color:var(--tx2);padding:6px 0}
         <div class="sbar"><i style="width:0%"></i></div>
       </button>
     </div>
-    <button class="icon" id="btnSet" aria-label="configurações">&#9881;</button>
   </div>
   <main>
-    <div id="dayline"></div>
     <div id="ctx"></div>
     <div id="path"></div>
     <div id="cards"></div>
@@ -556,6 +590,8 @@ function renderTop(day){
   const fg=$('#rfg');
   fg.style.strokeDasharray=CIRC;
   fg.style.strokeDashoffset=CIRC*(1-sc.p/100);
+  fg.style.stroke=sc.p===100?'var(--ok)':'';
+  document.querySelector('#vHome .ring').classList.toggle('full',sc.p===100);
   $('#rtx').textContent=sc.p+'%';
   [['#stkI','ielts'],['#stkC','concurso']].forEach(([sel,f])=>{
     const s=frontStreak(f),el=$(sel);
@@ -569,7 +605,13 @@ function renderDayline(day){
   const x=diffDays(st.cycleStart,t)+1;
   const y=diffDays(st.cycleStart,st.ieltsDate)+1;
   const wk=Math.max(1,Math.ceil(x/7));
-  $('#dayline').textContent=fmtDay(t)+' · dia '+x+' de '+y+' · semana '+wk;
+  $('#dayline').textContent=fmtDay(t)+' · semana '+wk;
+  $('#hbg').style.backgroundImage='url("'+IMGS[Math.abs(x)%IMGS.length]+'")';
+  const q=QUOTES[day.qi]||QUOTES[0];
+  $('#hQuote').textContent='“'+q[0]+'”';
+  $('#hAuthor').textContent='— '+q[1];
+  $('#hDay').textContent='Dia '+x+' de '+y+' até o IELTS';
+  $('#hFill').style.width=Math.max(0,Math.min(100,Math.round(x/y*100)))+'%';
   let c='';
   if(day.obstacle)c+='Obstáculo: <b>'+esc(day.obstacle)+'</b>';
   if(day.intention)c+=(c?' — ':'')+'<b>“'+esc(day.intention)+'”</b>';
