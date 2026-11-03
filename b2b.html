@@ -211,7 +211,7 @@ const DAYS=[
   {n:'Supino inclinado com halteres',s:3,r:'8–10',t:'c',rest:120,m:['Peito'],p:1},
   {n:'Chest press na máquina',s:2,r:'8–12',t:'c',rest:90,m:['Peito'],tech:'Rest-pause'},
   {n:'Crucifixo no cabo, de baixo para cima',s:3,r:'12–15',t:'i',rest:60,m:['Peito'],note:'Abra bem os braços: a parte alongada é a que mais conta.'},
-  {n:'Tríceps testa com barra W',s:3,r:'8–12',t:'i',rest:75,m:['Tríceps'],tech:'Rest-pause'},
+  {n:'Tríceps na polia com barra V',s:3,r:'8–12',t:'i',rest:75,m:['Tríceps'],tech:'Rest-pause',note:'Cotovelos colados ao tronco. Carga pesada aqui; a corda no fim é para fechar.'},
   {n:'Tríceps francês no cabo',s:3,r:'10–12',t:'i',rest:60,m:['Tríceps']},
   {n:'Tríceps na polia com corda',s:2,r:'12–15',t:'i',rest:60,m:['Tríceps'],tech:'Myo-reps'}]},
  {id:'d2',name:'Quadríceps',short:'Quad',k:'legs',ex:[
@@ -380,10 +380,11 @@ function renderEvo(){
   const all=[];DAYS.forEach((d,di)=>d.ex.forEach(e=>all.push({e,d,di})));
   const withData=all.filter(x=>entriesOf(x.e.n).some(hasData));
   let sel=LS.get('b2b-evo',null);
-  if(!all.some(x=>x.e.n===sel))sel=(withData[0]||all[0]).e.n;
-  const it=all.find(x=>x.e.n===sel);
+  const old=Object.keys(getLog()).filter(n=>!all.some(x=>x.e.n===n)&&entriesOf(n).some(hasData));
+  if(!all.some(x=>x.e.n===sel)&&!old.includes(sel))sel=(withData[0]||all[0]).e.n;
+  const it=all.find(x=>x.e.n===sel)||{e:{n:sel},d:{k:'push'}};
   const ses=entriesOf(sel).filter(x=>bestOf(x)>0);
-  const opts=DAYS.map((d,di)=>`<optgroup label="D${di+1} · ${esc(d.name)}">${d.ex.map(e=>{const n=entriesOf(e.n).filter(hasData).length;return `<option value="${esc(e.n)}" ${e.n===sel?'selected':''}>${esc(e.n)}${n?` (${n})`:''}</option>`}).join('')}</optgroup>`).join('');
+  const opts=DAYS.map((d,di)=>`<optgroup label="D${di+1} · ${esc(d.name)}">${d.ex.map(e=>{const n=entriesOf(e.n).filter(hasData).length;return `<option value="${esc(e.n)}" ${e.n===sel?'selected':''}>${esc(e.n)}${n?` (${n})`:''}</option>`}).join('')}</optgroup>`).join('')+(old.length?`<optgroup label="Fora da ficha atual">${old.map(n=>`<option value="${esc(n)}" ${n===sel?'selected':''}>${esc(n)} (${entriesOf(n).filter(hasData).length})</option>`).join('')}</optgroup>`:'');
   let body='';
   if(!ses.length){
     body=`<div class="empty">Nenhuma sessão registrada para este exercício ainda.<br>Anote carga e reps na tela do treino e a evolução aparece aqui.</div>`;
