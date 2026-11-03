@@ -104,6 +104,7 @@ main{padding-top:20px;display:grid;gap:20px}
 .chart .end{fill:var(--fg)}
 .chart text{fill:var(--muted);font-family:var(--font-mono);font-size:11px}
 .chart text.endlbl{fill:var(--fg);font-size:12px;font-weight:500}
+.storewarn{margin:12px 0 0;padding:10px 12px;border-radius:8px;border:1.5px solid var(--push);font-size:14px}
 .empty{padding:20px;border:1px dashed var(--line);border-radius:10px;text-align:center;color:var(--muted)}
 .bk textarea{width:100%;min-height:90px;font-family:var(--font-mono);font-size:12px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
 .bk .row{display:flex;gap:8px;flex-wrap:wrap}
@@ -182,6 +183,7 @@ tr.cur td{background:var(--surface-2)}
       <a href="#metricas" data-v="metricas">Métricas</a>
     </nav>
   </header>
+  <p class="storewarn" id="storewarn" hidden>Este navegador não está salvando os registros (modo privado ou armazenamento bloqueado). Abra o B2B pelo site brunnorborges.github.io/b2b.html num navegador normal.</p>
   <main id="app"></main>
 </div>
 
@@ -360,8 +362,8 @@ function renderDay(id){
   <p class="note">Anote carga e reps de cada série e toque em ✓ para concluir: o descanso começa sozinho. Os números em cinza são da última sessão; ✓ com os campos vazios repete esses valores.</p>`;
   app.querySelectorAll('.setgrid').forEach(g=>{
     const e=d.ex[+g.dataset.i];
-    g.addEventListener('change',ev=>{const inp=ev.target.closest('input');if(!inp)return;const k=+inp.closest('.setrow').dataset.k;
-      const v=inp.value===''?'':+inp.value;saveSet(e.n,k,{[inp.dataset.f]:v})});
+    ['input','change'].forEach(evt=>g.addEventListener(evt,ev=>{const inp=ev.target.closest('input');if(!inp)return;const k=+inp.closest('.setrow').dataset.k;
+      const v=inp.value===''?'':+inp.value;saveSet(e.n,k,{[inp.dataset.f]:v})}));
     g.addEventListener('click',ev=>{const b=ev.target.closest('.ok');if(!b)return;const row=b.closest('.setrow');const k=+row.dataset.k;
       const on=!row.classList.contains('on');const kgI=row.querySelector('[data-f="kg"]'),rI=row.querySelector('[data-f="r"]');
       const patch={ok:on};
@@ -563,6 +565,8 @@ document.getElementById('tplus').onclick=()=>{tEnd+=30000;tTot+=30;tick()};
 document.getElementById('tstop').onclick=()=>{clearInterval(tInt);timer.hidden=true};
 
 window.addEventListener('hashchange',route);
+(function(){let ok=false;try{localStorage.setItem('b2b-probe','1');ok=localStorage.getItem('b2b-probe')==='1';localStorage.removeItem('b2b-probe')}catch(e){}document.getElementById('storewarn').hidden=ok})();
+window.addEventListener('pagehide',()=>{const a=document.activeElement;if(a&&a.tagName==='INPUT')a.dispatchEvent(new Event('change',{bubbles:true}))});
 renderWeeks();route();
 </script>
 
