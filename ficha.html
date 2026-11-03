@@ -107,6 +107,8 @@ tr.cur td{background:var(--surface-2)}
 .checks label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
 .checks input{width:18px;height:18px;margin-top:2px;accent-color:var(--fg)}
 
+.cardio{background:var(--surface);border:1px dashed var(--muted);border-radius:10px;padding:14px;display:grid;gap:6px}
+.cardio.none{border-style:solid;border-color:var(--line)}
 .timer{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--fg);color:var(--bg);padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .timer .in{max-width:860px;margin:0 auto;display:flex;align-items:center;gap:14px}
 .timer .t{font-family:var(--font-mono);font-size:26px;font-variant-numeric:tabular-nums}
@@ -212,6 +214,13 @@ const DAYS=[
   {n:'Hiperextensão 45°',s:2,r:'12–15',t:'i',rest:75,m:['Glúteos','Posterior de coxa']},
   {n:'Panturrilha sentado',s:4,r:'12–20',t:'i',rest:60,m:['Panturrilha']}]}
 ];
+const CARDIO_DAY=[
+ {t:'Zona 2 · 25–30 min',d:'Esteira a 5–6 km/h, 8–12% de inclinação, sem segurar no corrimão. Ritmo em que dá para falar frases inteiras (≈110–130 bpm).'},
+ null,
+ {t:'HIIT · 15–20 min',d:'5 min de aquecimento, 6–8 × (1 min forte / 2 min leve), 3 min de volta à calma. Forte = esforço 8–9 de 10. De preferência na bike.',s3:'Nas S1–S2, faça 20 min de zona 2 no lugar.'},
+ {t:'Zona 2 · 40 min',d:'Esteira a 5–6 km/h, 8–12% de inclinação, sem segurar no corrimão. Ritmo em que dá para falar frases inteiras (≈110–130 bpm).'},
+ {t:'Zona 2 · 25–30 min',d:'Esteira a 5–6 km/h, 8–12% de inclinação, sem segurar no corrimão. Ritmo em que dá para falar frases inteiras (≈110–130 bpm).'}
+];
 const CARDIO=['Zona 2, 25–30 min','—','HIIT 15–20 min (a partir da S3)','Zona 2, 40 min','Zona 2, 25–30 min'];
 const TECH={
  'Top set + back-off':'Uma série pesada no topo (RIR 1), depois séries com 10% a menos e mais reps. Combina estímulo de força com volume.',
@@ -267,6 +276,9 @@ function renderDay(id){
       <div class="sets" data-i="${i}">${Array.from({length:s},(_,k)=>`<button type="button" class="${k<c?'on':''}" data-k="${k}" aria-label="Série ${k+1}">${k+1}</button>`).join('')}</div>
       ${e.note?`<p class="note">${esc(e.note)}</p>`:''}${tech}
     </article>`}).join('')}
+  ${(()=>{const c=CARDIO_DAY[di];if(!c)return `<section class="cardio none"><span class="label">Depois da musculação</span><h3>Sem cardio hoje</h3><p class="note">Dia de pernas pesado. Só mantenha a meta de passos.</p></section>`;
+    const hiitOff=c.s3&&!W.tech;const cc=W.deload&&c.s3?{t:'Zona 2 · 20 min',d:'Deload: troque o HIIT por zona 2 leve.'}:hiitOff?{t:'Zona 2 · 20 min',d:c.s3}:c;
+    return `<section class="cardio"><span class="label">Depois da musculação · cardio</span><h3>${cc.t}</h3><p>${cc.d}</p></section>`})()}
   <p class="note">Toque numa série para marcar como feita e o descanso começa sozinho. Registre carga e reps no FORGE.</p>`;
   app.querySelectorAll('.sets').forEach(box=>box.onclick=ev=>{
     const b=ev.target.closest('button');if(!b)return;const i=+box.dataset.i,k=+b.dataset.k;
