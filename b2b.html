@@ -110,7 +110,7 @@ main{padding-top:20px;display:grid;gap:20px}
 .storewarn{margin:12px 0 0;padding:10px 12px;border-radius:8px;border:1.5px solid var(--push);font-size:14px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .clog{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.clog4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.clog4{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
 .clog>div{display:grid;gap:4px;min-width:0}
 .clog input,.clog select,.ctable input,.ctable select,.plus input{width:100%;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font-family:var(--font-mono);font-size:16px}
 .ctable input,.ctable select{min-width:104px}
@@ -122,7 +122,6 @@ main{padding-top:20px;display:grid;gap:20px}
 .setrow .rm{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:transparent;font-size:18px;line-height:1;color:var(--muted)}
 .plus input{width:96px}
 .acts{display:flex;gap:6px;flex-wrap:wrap}
-@media (max-width:560px){.clog4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .empty{padding:20px;border:1px dashed var(--line);border-radius:10px;text-align:center;color:var(--muted)}
 .bk textarea{width:100%;min-height:90px;font-family:var(--font-mono);font-size:12px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
 .bk .row{display:flex;gap:8px;flex-wrap:wrap}
@@ -218,7 +217,7 @@ tr.cur td{background:var(--surface-2)}
 </div>
 
 <script>
-const APP_VERSION='2026-11-04-3';
+const APP_VERSION='2026-11-04-4';
 const PLATE={push:'var(--push)',pull:'var(--pull)',legs:'var(--legs)',arms:'var(--arms)'};
 const WEEKS=[
   {n:1,label:'Calibração',comp:'3',iso:'2',tech:false,extra:0,txt:'Achar as cargas de trabalho depois de 6 meses sem progressão. Sem técnicas, longe da falha.'},
@@ -304,7 +303,7 @@ function slug(s){return String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').replac
 function logDocId(n,d){return d+'__'+slug(n)}
 function normSets(a){return (Array.isArray(a)?a:[]).map(s=>({kg:s&&s.kg!=null?s.kg:'',r:s&&s.r!=null?s.r:'',ok:!!(s&&s.ok)}))}
 function normLog(b){return {n:String(b.n||''),d:String(b.d||''),w:b.w!=null?b.w:null,sets:normSets(b.sets)}}
-function normCardio(b){return {d:String(b.d||''),day:String(b.day||''),type:String(b.type||'Zona 2'),min:b.min!=null?b.min:'',km:b.km!=null?b.km:'',done:!!b.done}}
+function normCardio(b){return {d:String(b.d||''),day:String(b.day||''),type:String(b.type||'Zona 2'),min:b.min!=null?b.min:'',km:b.km!=null?b.km:'',inc:b.inc!=null?b.inc:'',done:!!b.done}}
 function logToDocs(){const L=getLog(),m={};for(const n in L)for(const e of (L[n]||[]))m[logDocId(n,e.d)]=normLog({n,d:e.d,w:e.w,sets:e.sets});return m}
 function logFromDocs(docs){const L={};Object.values(docs).forEach(b=>{if(!b.n||!b.d)return;(L[b.n]=L[b.n]||[]).push({d:b.d,w:b.w,sets:b.sets})});return L}
 function cardToDocs(){const m={};getCardio().forEach(x=>{if(x&&x.id)m[x.id]=normCardio(x)});return m}
@@ -379,7 +378,7 @@ function cardioToday(day){return getCardio().find(x=>x.d===today()&&x.day===day)
 function saveCardio(match,patch){
   const a=getCardio();
   let e=match.id?a.find(x=>x.id===match.id):a.find(x=>x.d===match.d&&x.day===match.day);
-  if(!e){e={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),d:match.d||today(),day:match.day||'',type:'Zona 2',min:'',km:'',done:false};a.push(e)}
+  if(!e){e={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),d:match.d||today(),day:match.day||'',type:'Zona 2',min:'',km:'',inc:'',done:false};a.push(e)}
   Object.assign(e,patch);setCardio(a);return e;
 }
 function delCardio(id){setCardio(getCardio().filter(x=>x.id!==id))}
@@ -391,20 +390,21 @@ function cardioBlock(di,id,W){
     head=`<span class="label">Depois da musculação · cardio</span><h3>${cc.t}</h3><p>${cc.d}</p>`;planType=cc.t.split(' · ')[0]}
   const cur=cardioToday(id)||{};const type=cur.type||planType;
   return `<section class="cardio${c?'':' none'}${cur.done?' cdone':''}" id="cardio-log">${head}
-    <div class="clog">
+    <div class="clog clog4">
       <div><label class="label" for="c-type">Tipo</label><select id="c-type">${CTYPES.map(t=>`<option ${t===type?'selected':''}>${t}</option>`).join('')}</select></div>
       <div><label class="label" for="c-min">Tempo (min)</label><input id="c-min" type="number" inputmode="numeric" min="0" step="1" value="${cur.min??''}"></div>
       <div><label class="label" for="c-km">Distância (km)</label><input id="c-km" type="number" inputmode="decimal" min="0" step="0.1" value="${cur.km??''}"></div>
+      <div><label class="label" for="c-inc">Inclinação (%)</label><input id="c-inc" type="number" inputmode="decimal" min="0" step="0.5" value="${cur.inc??''}"></div>
     </div>
     <button type="button" class="btn${cur.done?'':' ghost'}" id="c-done" aria-pressed="${!!cur.done}">${cur.done?'✓ Cardio feito':'Marcar cardio como feito'}</button>
   </section>`;
 }
 function wireCardio(id){
-  const t=document.getElementById('c-type'),m=document.getElementById('c-min'),k=document.getElementById('c-km'),b=document.getElementById('c-done');if(!b)return;
+  const t=document.getElementById('c-type'),m=document.getElementById('c-min'),k=document.getElementById('c-km'),ic=document.getElementById('c-inc'),b=document.getElementById('c-done');if(!b)return;
   const save=p=>saveCardio({d:today(),day:id},Object.assign({type:t.value},p));
-  ['input','change'].forEach(ev=>{m.addEventListener(ev,()=>save({min:numVal(m)}));k.addEventListener(ev,()=>save({km:numVal(k)}))});
+  ['input','change'].forEach(ev=>{m.addEventListener(ev,()=>save({min:numVal(m)}));k.addEventListener(ev,()=>save({km:numVal(k)}));ic.addEventListener(ev,()=>save({inc:numVal(ic)}))});
   t.addEventListener('change',()=>save({}));
-  b.onclick=()=>{const cur=cardioToday(id);const on=!(cur&&cur.done);save({done:on,min:numVal(m),km:numVal(k)});
+  b.onclick=()=>{const cur=cardioToday(id);const on=!(cur&&cur.done);save({done:on,min:numVal(m),km:numVal(k),inc:numVal(ic)});
     b.classList.toggle('ghost',!on);b.setAttribute('aria-pressed',String(on));b.textContent=on?'✓ Cardio feito':'Marcar cardio como feito';
     document.getElementById('cardio-log').classList.toggle('cdone',on)};
 }
@@ -646,14 +646,14 @@ function renderCardio(){
   const tm=wk.reduce((a,x)=>a+(+x.min||0),0),tk=wk.reduce((a,x)=>a+(+x.km||0),0);
   const dayLbl=x=>{const i=DAYS.findIndex(d=>d.id===x.day);return i>=0?'D'+(i+1):'Avulso'};
   const opt=sel=>CTYPES.map(t=>`<option ${t===sel?'selected':''}>${t}</option>`).join('');
-  const rows=list.map(x=>cEdit===x.id?`<tr class="cur"><td><input type="date" id="ce-d" value="${x.d}" aria-label="Data"></td><td><select id="ce-t" aria-label="Tipo">${opt(x.type)}</select></td><td><input id="ce-m" type="number" inputmode="numeric" min="0" step="1" value="${x.min??''}" aria-label="Tempo em minutos"></td><td><input id="ce-k" type="number" inputmode="decimal" min="0" step="0.1" value="${x.km??''}" aria-label="Distância em km"></td><td>${dayLbl(x)}</td><td><div class="acts"><button class="btn" type="button" id="ce-save">Salvar</button><button class="btn ghost" type="button" id="ce-cancel">Cancelar</button><button class="btn ghost danger" type="button" id="ce-del">Apagar</button></div></td></tr>`
-    :`<tr><td class="mono">${fmtDate(x.d)}</td><td>${esc(x.type)}</td><td class="mono">${x.min!==''&&x.min!=null?fmtKg(+x.min)+' min':'–'}</td><td class="mono">${x.km!==''&&x.km!=null?fmtKg(+x.km)+' km':'–'}</td><td>${dayLbl(x)}${x.done?'':' · não marcado'}</td><td><button class="linkbtn" type="button" data-ce="${x.id}">Editar</button></td></tr>`).join('');
+  const rows=list.map(x=>cEdit===x.id?`<tr class="cur"><td><input type="date" id="ce-d" value="${x.d}" aria-label="Data"></td><td><select id="ce-t" aria-label="Tipo">${opt(x.type)}</select></td><td><input id="ce-m" type="number" inputmode="numeric" min="0" step="1" value="${x.min??''}" aria-label="Tempo em minutos"></td><td><input id="ce-k" type="number" inputmode="decimal" min="0" step="0.1" value="${x.km??''}" aria-label="Distância em km"></td><td><input id="ce-i" type="number" inputmode="decimal" min="0" step="0.5" value="${x.inc??''}" aria-label="Inclinação em %"></td><td>${dayLbl(x)}</td><td><div class="acts"><button class="btn" type="button" id="ce-save">Salvar</button><button class="btn ghost" type="button" id="ce-cancel">Cancelar</button><button class="btn ghost danger" type="button" id="ce-del">Apagar</button></div></td></tr>`
+    :`<tr><td class="mono">${fmtDate(x.d)}</td><td>${esc(x.type)}</td><td class="mono">${x.min!==''&&x.min!=null?fmtKg(+x.min)+' min':'–'}</td><td class="mono">${x.km!==''&&x.km!=null?fmtKg(+x.km)+' km':'–'}</td><td class="mono">${x.inc!==''&&x.inc!=null?fmtKg(+x.inc)+'%':'–'}</td><td>${dayLbl(x)}${x.done?'':' · não marcado'}</td><td><button class="linkbtn" type="button" data-ce="${x.id}">Editar</button></td></tr>`).join('');
   app.innerHTML=`
   <section class="prose"><h2>Cardio e passos</h2>
     <p>Caminhada inclinada na esteira é o cardio base: gasta bem e interfere pouco na hipertrofia. Sempre depois da musculação.</p></section>
   <section class="card"><h3>Seus registros</h3>
     <div class="stats"><div><span class="label">Sessões · 7 dias</span><b>${wk.length}</b></div><div><span class="label">Minutos · 7 dias</span><b>${fmtKg(tm)}</b></div><div><span class="label">Km · 7 dias</span><b>${fmtKg(tk)}</b></div></div>
-    ${list.length?`<div class="tablewrap"><table class="ctable"><thead><tr><th>Data</th><th>Tipo</th><th>Tempo</th><th>Distância</th><th>Ficha</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:`<div class="empty">Nenhum cardio registrado ainda.<br>Registre no fim da tela do treino ou adicione abaixo.</div>`}
+    ${list.length?`<div class="tablewrap"><table class="ctable"><thead><tr><th>Data</th><th>Tipo</th><th>Tempo</th><th>Distância</th><th>Inclinação</th><th>Ficha</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:`<div class="empty">Nenhum cardio registrado ainda.<br>Registre no fim da tela do treino ou adicione abaixo.</div>`}
     <h3>Adicionar cardio avulso</h3>
     <p class="note">Para cardio feito fora do treino, como uma corrida ao ar livre.</p>
     <div class="clog clog4">
@@ -661,6 +661,7 @@ function renderCardio(){
       <div><label class="label" for="ca-t">Tipo</label><select id="ca-t">${opt('Corrida ao ar livre')}</select></div>
       <div><label class="label" for="ca-m">Tempo (min)</label><input id="ca-m" type="number" inputmode="numeric" min="0" step="1"></div>
       <div><label class="label" for="ca-k">Distância (km)</label><input id="ca-k" type="number" inputmode="decimal" min="0" step="0.1"></div>
+      <div><label class="label" for="ca-i">Inclinação (%)</label><input id="ca-i" type="number" inputmode="decimal" min="0" step="0.5"></div>
     </div>
     <div class="row"><button class="btn" type="button" id="ca-add">Adicionar</button><span class="note" id="ca-msg" aria-live="polite"></span></div>
   </section>
@@ -678,14 +679,14 @@ function renderCardio(){
   app.querySelectorAll('[data-ce]').forEach(b=>b.onclick=()=>{cEdit=b.dataset.ce;renderCardio()});
   const sv=document.getElementById('ce-save');
   if(sv){
-    sv.onclick=()=>{const d=document.getElementById('ce-d').value;saveCardio({id:cEdit},{d:d||t0,type:document.getElementById('ce-t').value,min:numVal(document.getElementById('ce-m')),km:numVal(document.getElementById('ce-k')),done:true});cEdit=null;renderCardio()};
+    sv.onclick=()=>{const d=document.getElementById('ce-d').value;saveCardio({id:cEdit},{d:d||t0,type:document.getElementById('ce-t').value,min:numVal(document.getElementById('ce-m')),km:numVal(document.getElementById('ce-k')),inc:numVal(document.getElementById('ce-i')),done:true});cEdit=null;renderCardio()};
     document.getElementById('ce-cancel').onclick=()=>{cEdit=null;renderCardio()};
     let armed=false;const del=document.getElementById('ce-del');
     del.onclick=()=>{if(!armed){armed=true;del.textContent='Toque de novo';setTimeout(()=>{armed=false;del.textContent='Apagar'},4000);return}delCardio(cEdit);cEdit=null;renderCardio()};
   }
   document.getElementById('ca-add').onclick=()=>{const m=numVal(document.getElementById('ca-m')),k=numVal(document.getElementById('ca-k'));
     if(m===''&&k===''){document.getElementById('ca-msg').textContent='Preencha o tempo ou a distância.';return}
-    saveCardio({id:'__novo'},{d:document.getElementById('ca-d').value||t0,day:'',type:document.getElementById('ca-t').value,min:m,km:k,done:true});cEdit=null;renderCardio();
+    saveCardio({id:'__novo'},{d:document.getElementById('ca-d').value||t0,day:'',type:document.getElementById('ca-t').value,min:m,km:k,inc:numVal(document.getElementById('ca-i')),done:true});cEdit=null;renderCardio();
     document.getElementById('ca-msg').textContent='Cardio adicionado.'};
 }
 
