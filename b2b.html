@@ -105,6 +105,21 @@ main{padding-top:20px;display:grid;gap:20px}
 .chart text{fill:var(--muted);font-family:var(--font-mono);font-size:11px}
 .chart text.endlbl{fill:var(--fg);font-size:12px;font-weight:500}
 .storewarn{margin:12px 0 0;padding:10px 12px;border-radius:8px;border:1.5px solid var(--push);font-size:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.clog{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.clog4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.clog>div{display:grid;gap:4px;min-width:0}
+.clog input,.clog select,.ctable input,.ctable select,.plus input{width:100%;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font-family:var(--font-mono);font-size:16px}
+.ctable input,.ctable select{min-width:104px}
+.cardio.cdone{border-style:solid;border-color:var(--arms)}
+.cardio .btn{justify-self:start;margin-top:4px}
+.linkbtn{background:none;border:0;padding:0;color:var(--fg);text-decoration:underline;font-size:14px}
+.btn.danger{border-color:var(--push);color:var(--push)}
+.editor{border-top:1px solid var(--line);padding-top:14px;display:grid;gap:10px}
+.setrow .rm{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:transparent;font-size:18px;line-height:1;color:var(--muted)}
+.plus input{width:96px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+@media (max-width:560px){.clog4{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .empty{padding:20px;border:1px dashed var(--line);border-radius:10px;text-align:center;color:var(--muted)}
 .bk textarea{width:100%;min-height:90px;font-family:var(--font-mono);font-size:12px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
 .bk .row{display:flex;gap:8px;flex-wrap:wrap}
@@ -291,6 +306,46 @@ function saveSet(name,k,patch){
   Object.assign(e.sets[k],patch);e.w=week;
   LS.set(LOG_KEY,L);
 }
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+// ---- Registro de cardio ----
+const CARDIO_KEY='b2b-cardio';
+const CTYPES=['Zona 2','HIIT','Corrida ao ar livre','Caminhada ao ar livre','Bike','Outro'];
+function getCardio(){const a=LS.get(CARDIO_KEY,[]);return Array.isArray(a)?a:[]}
+function setCardio(a){LS.set(CARDIO_KEY,a)}
+function cardioToday(day){return getCardio().find(x=>x.d===today()&&x.day===day)}
+function saveCardio(match,patch){
+  const a=getCardio();
+  let e=match.id?a.find(x=>x.id===match.id):a.find(x=>x.d===match.d&&x.day===match.day);
+  if(!e){e={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),d:match.d||today(),day:match.day||'',type:'Zona 2',min:'',km:'',done:false};a.push(e)}
+  Object.assign(e,patch);setCardio(a);return e;
+}
+function delCardio(id){setCardio(getCardio().filter(x=>x.id!==id))}
+function numVal(el){return el.value===''?'':+el.value}
+function cardioBlock(di,id,W){
+  const c=CARDIO_DAY[di];let head,planType;
+  if(!c){head=`<span class="label">Depois da musculação</span><h3>Sem cardio planejado</h3><p class="note">Dia de pernas pesado. Só mantenha a meta de passos. Se fizer algum cardio, registre aqui.</p>`;planType='Caminhada ao ar livre'}
+  else{const hiitOff=c.s3&&!W.tech;const cc=W.deload&&c.s3?{t:'Zona 2 · 20 min',d:'Deload: troque o HIIT por zona 2 leve.'}:hiitOff?{t:'Zona 2 · 20 min',d:c.s3}:c;
+    head=`<span class="label">Depois da musculação · cardio</span><h3>${cc.t}</h3><p>${cc.d}</p>`;planType=cc.t.split(' · ')[0]}
+  const cur=cardioToday(id)||{};const type=cur.type||planType;
+  return `<section class="cardio${c?'':' none'}${cur.done?' cdone':''}" id="cardio-log">${head}
+    <div class="clog">
+      <div><label class="label" for="c-type">Tipo</label><select id="c-type">${CTYPES.map(t=>`<option ${t===type?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div><label class="label" for="c-min">Tempo (min)</label><input id="c-min" type="number" inputmode="numeric" min="0" step="1" value="${cur.min??''}"></div>
+      <div><label class="label" for="c-km">Distância (km)</label><input id="c-km" type="number" inputmode="decimal" min="0" step="0.1" value="${cur.km??''}"></div>
+    </div>
+    <button type="button" class="btn${cur.done?'':' ghost'}" id="c-done" aria-pressed="${!!cur.done}">${cur.done?'✓ Cardio feito':'Marcar cardio como feito'}</button>
+  </section>`;
+}
+function wireCardio(id){
+  const t=document.getElementById('c-type'),m=document.getElementById('c-min'),k=document.getElementById('c-km'),b=document.getElementById('c-done');if(!b)return;
+  const save=p=>saveCardio({d:today(),day:id},Object.assign({type:t.value},p));
+  ['input','change'].forEach(ev=>{m.addEventListener(ev,()=>save({min:numVal(m)}));k.addEventListener(ev,()=>save({km:numVal(k)}))});
+  t.addEventListener('change',()=>save({}));
+  b.onclick=()=>{const cur=cardioToday(id);const on=!(cur&&cur.done);save({done:on,min:numVal(m),km:numVal(k)});
+    b.classList.toggle('ghost',!on);b.setAttribute('aria-pressed',String(on));b.textContent=on?'✓ Cardio feito':'Marcar cardio como feito';
+    document.getElementById('cardio-log').classList.toggle('cdone',on)};
+}
+
 function clearToday(names){const L=getLog();const t=today();names.forEach(n=>{if(L[n])L[n]=L[n].filter(x=>x.d!==t)});LS.set(LOG_KEY,L)}
 function e1rm(kg,r){return kg*(1+r/30)}
 function bestOf(x){let b=0;x.sets.forEach(s=>{const kg=+s.kg,r=+s.r;if(kg>0&&r>0)b=Math.max(b,e1rm(kg,r))});return b}
@@ -356,9 +411,7 @@ function renderDay(id){
       </div>
       ${e.note?`<p class="note">${esc(e.note)}</p>`:''}${tech}
     </article>`}).join('')}
-  ${(()=>{const c=CARDIO_DAY[di];if(!c)return `<section class="cardio none"><span class="label">Depois da musculação</span><h3>Sem cardio hoje</h3><p class="note">Dia de pernas pesado. Só mantenha a meta de passos.</p></section>`;
-    const hiitOff=c.s3&&!W.tech;const cc=W.deload&&c.s3?{t:'Zona 2 · 20 min',d:'Deload: troque o HIIT por zona 2 leve.'}:hiitOff?{t:'Zona 2 · 20 min',d:c.s3}:c;
-    return `<section class="cardio"><span class="label">Depois da musculação · cardio</span><h3>${cc.t}</h3><p>${cc.d}</p></section>`})()}
+  ${cardioBlock(di,id,W)}
   <p class="note">Anote carga e reps de cada série e toque em ✓ para concluir: o descanso começa sozinho. Os números em cinza são da última sessão; ✓ com os campos vazios repete esses valores.</p>`;
   app.querySelectorAll('.setgrid').forEach(g=>{
     const e=d.ex[+g.dataset.i];
@@ -373,9 +426,43 @@ function renderDay(id){
       const y=window.scrollY;renderDay(id);window.scrollTo(0,y)});
   });
   app.querySelectorAll('.restbtn').forEach(b=>b.onclick=()=>startTimer(+b.dataset.rest));
+  wireCardio(id);
   const rb=document.getElementById('reset');let armed=false;
   rb.onclick=()=>{if(!armed){armed=true;rb.textContent='Toque de novo para apagar';setTimeout(()=>{armed=false;rb.textContent='Apagar registros de hoje'},4000);return}
     clearToday(d.ex.map(e=>e.n));renderDay(id)};
+}
+
+let evoEdit=null;
+function edRow(s,k){return `<div class="setrow" data-k="${k}"><span class="n">${k+1}</span><input type="number" inputmode="decimal" step="0.5" min="0" id="ed-kg-${k}" data-f="kg" value="${s.kg??''}" aria-label="Carga da série ${k+1}"><input type="number" inputmode="numeric" step="1" min="0" id="ed-r-${k}" data-f="r" value="${s.r??''}" aria-label="Reps da série ${k+1}"><button type="button" class="rm" aria-label="Remover série ${k+1}">×</button></div>`}
+function editorHTML(name,date){
+  const x=entriesOf(name).find(e=>e.d===date);if(!x)return '';
+  return `<section class="editor" id="ed"><h3>Editar sessão de ${fmtDate(date)}</h3>
+    <div class="setgrid" id="ed-grid"><div class="setrow head"><span></span><span>Carga (kg)</span><span>Reps</span><span></span></div>${x.sets.map((s,k)=>edRow(s,k)).join('')}</div>
+    <div class="row"><button class="btn ghost" type="button" id="ed-add">+ Série</button></div>
+    <div class="row plus"><label for="ed-plus">Somar a todas as séries</label><input id="ed-plus" type="number" inputmode="decimal" step="0.5" value="20"><span>kg</span><button class="btn ghost" type="button" id="ed-apply">Aplicar</button></div>
+    <p class="note" id="ed-msg" aria-live="polite">Use "Somar" para incluir o peso da barra (20 kg) numa sessão anotada sem ela. Depois toque em Salvar.</p>
+    <div class="row"><button class="btn" type="button" id="ed-save">Salvar</button><button class="btn ghost" type="button" id="ed-cancel">Cancelar</button><button class="btn ghost danger" type="button" id="ed-del">Apagar sessão</button></div>
+  </section>`;
+}
+function wireEditor(name,date){
+  const grid=document.getElementById('ed-grid');if(!grid)return;
+  const read=()=>[...grid.querySelectorAll('.setrow[data-k]')].map(r=>({kg:r.querySelector('[data-f="kg"]').value,r:r.querySelector('[data-f="r"]').value}));
+  const paint=d=>{grid.querySelectorAll('.setrow[data-k]').forEach(r=>r.remove());grid.insertAdjacentHTML('beforeend',d.map((s,k)=>edRow(s,k)).join(''))};
+  const msg=document.getElementById('ed-msg');
+  grid.addEventListener('click',ev=>{const b=ev.target.closest('.rm');if(!b)return;const d=read();d.splice(+b.closest('.setrow').dataset.k,1);paint(d)});
+  document.getElementById('ed-add').onclick=()=>{const d=read();const l=d[d.length-1]||{};d.push({kg:l.kg||'',r:''});paint(d)};
+  document.getElementById('ed-apply').onclick=()=>{const n=+document.getElementById('ed-plus').value;if(!n)return;
+    paint(read().map(s=>({kg:s.kg===''?'':String(Math.round((+s.kg+n)*10)/10),r:s.r})));
+    msg.textContent=`Somados ${fmtKg(n)} kg a cada série. Confira e toque em Salvar.`};
+  document.getElementById('ed-save').onclick=()=>{
+    const d=read().filter(s=>s.kg!==''||s.r!=='').map(s=>({kg:s.kg===''?'':+s.kg,r:s.r===''?'':+s.r,ok:true}));
+    const L=getLog();const arr=L[name]||[];const e=arr.find(x=>x.d===date);
+    if(e){if(d.length)e.sets=d;else L[name]=arr.filter(x=>x.d!==date)}
+    LS.set(LOG_KEY,L);evoEdit=null;renderEvo()};
+  document.getElementById('ed-cancel').onclick=()=>{evoEdit=null;renderEvo()};
+  let armed=false;const del=document.getElementById('ed-del');
+  del.onclick=()=>{if(!armed){armed=true;del.textContent='Toque de novo para apagar';setTimeout(()=>{armed=false;del.textContent='Apagar sessão'},4000);return}
+    const L=getLog();L[name]=(L[name]||[]).filter(x=>x.d!==date);LS.set(LOG_KEY,L);evoEdit=null;renderEvo()};
 }
 
 function renderEvo(){
@@ -385,32 +472,39 @@ function renderEvo(){
   const old=Object.keys(getLog()).filter(n=>!all.some(x=>x.e.n===n)&&entriesOf(n).some(hasData));
   if(!all.some(x=>x.e.n===sel)&&!old.includes(sel))sel=(withData[0]||all[0]).e.n;
   const it=all.find(x=>x.e.n===sel)||{e:{n:sel},d:{k:'push'}};
-  const ses=entriesOf(sel).filter(x=>bestOf(x)>0);
+  const rowsAll=entriesOf(sel).filter(hasData);
+  const ses=rowsAll.filter(x=>bestOf(x)>0);
+  if(evoEdit&&!rowsAll.some(x=>x.d===evoEdit))evoEdit=null;
   const opts=DAYS.map((d,di)=>`<optgroup label="D${di+1} · ${esc(d.name)}">${d.ex.map(e=>{const n=entriesOf(e.n).filter(hasData).length;return `<option value="${esc(e.n)}" ${e.n===sel?'selected':''}>${esc(e.n)}${n?` (${n})`:''}</option>`}).join('')}</optgroup>`).join('')+(old.length?`<optgroup label="Fora da ficha atual">${old.map(n=>`<option value="${esc(n)}" ${n===sel?'selected':''}>${esc(n)} (${entriesOf(n).filter(hasData).length})</option>`).join('')}</optgroup>`:'');
   let body='';
-  if(!ses.length){
+  if(!rowsAll.length){
     body=`<div class="empty">Nenhuma sessão registrada para este exercício ainda.<br>Anote carga e reps na tela do treino e a evolução aparece aqui.</div>`;
   }else{
-    const ys=ses.map(bestOf),first=ys[0],lastV=ys[ys.length-1],best=Math.max(...ys),bestI=ys.indexOf(best);
-    const diff=lastV-first,pct=first?diff/first*100:0;
-    body=`<div class="stats">
-      <div><span class="label">1RM estimado atual</span><b>${fmtKg(lastV)} kg</b></div>
-      <div><span class="label">Melhor marca</span><b>${fmtKg(best)} kg</b><span class="note">${fmtDate(ses[bestI].d)}</span></div>
-      <div><span class="label">Desde o início</span><b>${diff>=0?'+':''}${fmtKg(diff)} kg</b><span class="note">${diff>=0?'+':''}${fmtKg(pct)}% em ${ses.length} ${ses.length>1?'sessões':'sessão'}</span></div>
-    </div>
-    ${chartSVG(ses.map(x=>x.d),ys)}
-    <p class="note">1RM estimado pela fórmula de Epley, a partir da melhor série de cada sessão. Serve para comparar sessões entre si, não como teste de carga máxima.</p>
-    <div class="tablewrap"><table><thead><tr><th>Data</th><th>Semana</th><th>Séries (kg × reps)</th><th>1RM est.</th></tr></thead><tbody>
-      ${ses.slice().reverse().map(x=>`<tr><td class="mono">${fmtDate(x.d)}</td><td class="mono">S${x.w||'–'}</td><td class="mono">${esc(setsTxt(x))}</td><td class="mono">${fmtKg(bestOf(x))}</td></tr>`).join('')}
-    </tbody></table></div>`;
+    if(ses.length){
+      const ys=ses.map(bestOf),first=ys[0],lastV=ys[ys.length-1],best=Math.max(...ys),bestI=ys.indexOf(best);
+      const diff=lastV-first,pct=first?diff/first*100:0;
+      body+=`<div class="stats">
+        <div><span class="label">1RM estimado atual</span><b>${fmtKg(lastV)} kg</b></div>
+        <div><span class="label">Melhor marca</span><b>${fmtKg(best)} kg</b><span class="note">${fmtDate(ses[bestI].d)}</span></div>
+        <div><span class="label">Desde o início</span><b>${diff>=0?'+':''}${fmtKg(diff)} kg</b><span class="note">${diff>=0?'+':''}${fmtKg(pct)}% em ${ses.length} ${ses.length>1?'sessões':'sessão'}</span></div>
+      </div>
+      ${chartSVG(ses.map(x=>x.d),ys)}
+      <p class="note">1RM estimado pela fórmula de Epley, a partir da melhor série de cada sessão. Serve para comparar sessões entre si, não como teste de carga máxima.</p>`;
+    }
+    body+=`<div class="tablewrap"><table><thead><tr><th>Data</th><th>Semana</th><th>Séries (kg × reps)</th><th>1RM est.</th><th></th></tr></thead><tbody>
+      ${rowsAll.slice().reverse().map(x=>{const b=bestOf(x);return `<tr class="${x.d===evoEdit?'cur':''}"><td class="mono">${fmtDate(x.d)}</td><td class="mono">S${x.w||'–'}</td><td class="mono">${esc(setsTxt(x))}</td><td class="mono">${b?fmtKg(b):'–'}</td><td><button class="linkbtn" type="button" data-ed="${x.d}">Editar</button></td></tr>`}).join('')}
+    </tbody></table></div>
+    ${evoEdit?editorHTML(sel,evoEdit):''}`;
   }
   app.innerHTML=`
-  <section class="prose"><h2>Evolução</h2><p>Escolha um exercício para ver como a força vem evoluindo sessão a sessão.</p></section>
+  <section class="prose"><h2>Evolução</h2><p>Escolha um exercício para ver como a força vem evoluindo sessão a sessão. Toque em Editar para corrigir uma sessão.</p></section>
   <section class="card" style="--c:${PLATE[it.d.k]}">
     <div class="evo-top"><div style="display:grid;gap:4px;min-width:0;flex:1"><label class="label" for="evo-ex">Exercício</label><select id="evo-ex">${opts}</select></div></div>
     ${body}
   </section>`;
-  document.getElementById('evo-ex').onchange=ev=>{LS.set('b2b-evo',ev.target.value);renderEvo()};
+  document.getElementById('evo-ex').onchange=ev=>{LS.set('b2b-evo',ev.target.value);evoEdit=null;renderEvo()};
+  app.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{evoEdit=b.dataset.ed;renderEvo()});
+  if(evoEdit){wireEditor(sel,evoEdit);const ed=document.getElementById('ed');if(ed)ed.scrollIntoView({block:'nearest'})}
 }
 
 function chartSVG(dates,ys){
@@ -481,11 +575,33 @@ function renderProg(){
     <li>Novo mesociclo: volta ao volume da S1 com as cargas novas e troca 1–2 exercícios que estagnaram.</li></ul></section>`;
 }
 
+let cEdit=null;
 function renderCardio(){
+  const list=getCardio().filter(x=>x.done||x.min||x.km).sort((p,q)=>p.d===q.d?0:(p.d<q.d?1:-1));
+  const s=new Date();s.setDate(s.getDate()-6);const since=ymd(s),t0=today();
+  const wk=list.filter(x=>x.d>=since&&x.d<=t0);
+  const tm=wk.reduce((a,x)=>a+(+x.min||0),0),tk=wk.reduce((a,x)=>a+(+x.km||0),0);
+  const dayLbl=x=>{const i=DAYS.findIndex(d=>d.id===x.day);return i>=0?'D'+(i+1):'Avulso'};
+  const opt=sel=>CTYPES.map(t=>`<option ${t===sel?'selected':''}>${t}</option>`).join('');
+  const rows=list.map(x=>cEdit===x.id?`<tr class="cur"><td><input type="date" id="ce-d" value="${x.d}" aria-label="Data"></td><td><select id="ce-t" aria-label="Tipo">${opt(x.type)}</select></td><td><input id="ce-m" type="number" inputmode="numeric" min="0" step="1" value="${x.min??''}" aria-label="Tempo em minutos"></td><td><input id="ce-k" type="number" inputmode="decimal" min="0" step="0.1" value="${x.km??''}" aria-label="Distância em km"></td><td>${dayLbl(x)}</td><td><div class="acts"><button class="btn" type="button" id="ce-save">Salvar</button><button class="btn ghost" type="button" id="ce-cancel">Cancelar</button><button class="btn ghost danger" type="button" id="ce-del">Apagar</button></div></td></tr>`
+    :`<tr><td class="mono">${fmtDate(x.d)}</td><td>${esc(x.type)}</td><td class="mono">${x.min!==''&&x.min!=null?fmtKg(+x.min)+' min':'–'}</td><td class="mono">${x.km!==''&&x.km!=null?fmtKg(+x.km)+' km':'–'}</td><td>${dayLbl(x)}${x.done?'':' · não marcado'}</td><td><button class="linkbtn" type="button" data-ce="${x.id}">Editar</button></td></tr>`).join('');
   app.innerHTML=`
   <section class="prose"><h2>Cardio e passos</h2>
     <p>Caminhada inclinada na esteira é o cardio base: gasta bem e interfere pouco na hipertrofia. Sempre depois da musculação.</p></section>
-  <section class="card"><div class="tablewrap"><table>
+  <section class="card"><h3>Seus registros</h3>
+    <div class="stats"><div><span class="label">Sessões · 7 dias</span><b>${wk.length}</b></div><div><span class="label">Minutos · 7 dias</span><b>${fmtKg(tm)}</b></div><div><span class="label">Km · 7 dias</span><b>${fmtKg(tk)}</b></div></div>
+    ${list.length?`<div class="tablewrap"><table class="ctable"><thead><tr><th>Data</th><th>Tipo</th><th>Tempo</th><th>Distância</th><th>Ficha</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:`<div class="empty">Nenhum cardio registrado ainda.<br>Registre no fim da tela do treino ou adicione abaixo.</div>`}
+    <h3>Adicionar cardio avulso</h3>
+    <p class="note">Para cardio feito fora do treino, como uma corrida ao ar livre.</p>
+    <div class="clog clog4">
+      <div><label class="label" for="ca-d">Data</label><input type="date" id="ca-d" value="${t0}"></div>
+      <div><label class="label" for="ca-t">Tipo</label><select id="ca-t">${opt('Corrida ao ar livre')}</select></div>
+      <div><label class="label" for="ca-m">Tempo (min)</label><input id="ca-m" type="number" inputmode="numeric" min="0" step="1"></div>
+      <div><label class="label" for="ca-k">Distância (km)</label><input id="ca-k" type="number" inputmode="decimal" min="0" step="0.1"></div>
+    </div>
+    <div class="row"><button class="btn" type="button" id="ca-add">Adicionar</button><span class="note" id="ca-msg" aria-live="polite"></span></div>
+  </section>
+  <section class="card"><h3>Plano</h3><div class="tablewrap"><table>
     <thead><tr><th>Tipo</th><th>Como fazer</th><th>Quando</th></tr></thead><tbody>
     <tr><td><b>Zona 2</b></td><td>Esteira a 5–6 km/h, 8–12% de inclinação, sem segurar no corrimão. Dá para falar frases inteiras. Referência: 110–130 bpm.</td><td>Após D1 e D5 (25–30 min) e D4 (40 min)</td></tr>
     <tr><td><b>HIIT</b></td><td>5 min de aquecimento, 6–8 × (1 min forte / 2 min caminhando), 3 min de volta à calma. Forte = esforço 8–9 de 10.</td><td>Após D3, a partir da S3. De preferência na bike, por cair entre os dois treinos de pernas.</td></tr>
@@ -496,6 +612,18 @@ function renderCardio(){
     <li>Semana 1: só meça sua média de passos.</li>
     <li>Depois, +1.000 passos/dia por semana até 8.000–10.000.</li>
     <li>Levante a cada 45–60 min sentado; calls sem câmera viram calls caminhando.</li></ul></section>`;
+  app.querySelectorAll('[data-ce]').forEach(b=>b.onclick=()=>{cEdit=b.dataset.ce;renderCardio()});
+  const sv=document.getElementById('ce-save');
+  if(sv){
+    sv.onclick=()=>{const d=document.getElementById('ce-d').value;saveCardio({id:cEdit},{d:d||t0,type:document.getElementById('ce-t').value,min:numVal(document.getElementById('ce-m')),km:numVal(document.getElementById('ce-k')),done:true});cEdit=null;renderCardio()};
+    document.getElementById('ce-cancel').onclick=()=>{cEdit=null;renderCardio()};
+    let armed=false;const del=document.getElementById('ce-del');
+    del.onclick=()=>{if(!armed){armed=true;del.textContent='Toque de novo';setTimeout(()=>{armed=false;del.textContent='Apagar'},4000);return}delCardio(cEdit);cEdit=null;renderCardio()};
+  }
+  document.getElementById('ca-add').onclick=()=>{const m=numVal(document.getElementById('ca-m')),k=numVal(document.getElementById('ca-k'));
+    if(m===''&&k===''){document.getElementById('ca-msg').textContent='Preencha o tempo ou a distância.';return}
+    saveCardio({id:'__novo'},{d:document.getElementById('ca-d').value||t0,day:'',type:document.getElementById('ca-t').value,min:m,km:k,done:true});cEdit=null;renderCardio();
+    document.getElementById('ca-msg').textContent='Cardio adicionado.'};
 }
 
 function renderTec(){
@@ -536,14 +664,14 @@ function renderMet(){
   </section>`;
   app.querySelectorAll('.checks input').forEach((el,i)=>el.onchange=()=>{ck[i]=el.checked;LS.set(key,ck)});
   const msg=document.getElementById('bk-msg'),ta=document.getElementById('bk-text');
-  document.getElementById('bk-copy').onclick=()=>{const txt=JSON.stringify(getLog());ta.value=txt;
+  document.getElementById('bk-copy').onclick=()=>{const txt=JSON.stringify({app:'b2b',v:2,log:getLog(),cardio:getCardio()});ta.value=txt;
     const ok=()=>{msg.textContent='Backup copiado. Cole numa nota para guardar.'};
     const fb=()=>{ta.focus();ta.select();msg.textContent='Não deu para copiar sozinho: o texto está selecionado acima, copie manualmente.'};
     try{navigator.clipboard.writeText(txt).then(ok,fb)}catch(e){fb()}};
   let armed=false;const rb=document.getElementById('bk-restore');
   rb.onclick=()=>{let data;try{data=JSON.parse(ta.value);if(!data||typeof data!=='object'||Array.isArray(data))throw 0}catch(e){msg.textContent='Esse texto não é um backup válido do B2B. Copie de novo o backup completo.';return}
     if(!armed){armed=true;rb.textContent='Toque de novo para substituir os registros atuais';setTimeout(()=>{armed=false;rb.textContent='Restaurar backup'},5000);return}
-    LS.set(LOG_KEY,data);armed=false;rb.textContent='Restaurar backup';msg.textContent='Backup restaurado.'};
+    if(data.app==='b2b'){if(data.log&&typeof data.log==='object')LS.set(LOG_KEY,data.log);if(Array.isArray(data.cardio))setCardio(data.cardio)}else LS.set(LOG_KEY,data);armed=false;rb.textContent='Restaurar backup';msg.textContent='Backup restaurado.'};
 }
 
 function route(){
