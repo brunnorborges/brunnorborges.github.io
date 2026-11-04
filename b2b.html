@@ -104,6 +104,7 @@ main{padding-top:20px;display:grid;gap:20px}
 .chart .end{fill:var(--fg)}
 .chart text{fill:var(--muted);font-family:var(--font-mono);font-size:11px}
 .chart text.endlbl{fill:var(--fg);font-size:12px;font-weight:500}
+.updbar{margin:12px 0 0;padding:10px 12px;border-radius:8px;border:1.5px solid var(--fg);display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:14px}
 .storewarn{margin:12px 0 0;padding:10px 12px;border-radius:8px;border:1.5px solid var(--push);font-size:14px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .clog{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -198,6 +199,7 @@ tr.cur td{background:var(--surface-2)}
       <a href="#metricas" data-v="metricas">Métricas</a>
     </nav>
   </header>
+  <div class="updbar" id="updbar" hidden><span>Nova versão do B2B disponível. Seus registros continuam salvos.</span><button class="btn" type="button" id="upd-btn">Atualizar</button></div>
   <p class="storewarn" id="storewarn" hidden>Este navegador não está salvando os registros (modo privado ou armazenamento bloqueado). Abra o B2B pelo site brunnorborges.github.io/b2b.html num navegador normal.</p>
   <main id="app"></main>
 </div>
@@ -212,6 +214,7 @@ tr.cur td{background:var(--surface-2)}
 </div>
 
 <script>
+const APP_VERSION='2026-11-04-2';
 const PLATE={push:'var(--push)',pull:'var(--pull)',legs:'var(--legs)',arms:'var(--arms)'};
 const WEEKS=[
   {n:1,label:'Calibração',comp:'3',iso:'2',tech:false,extra:0,txt:'Achar as cargas de trabalho depois de 6 meses sem progressão. Sem técnicas, longe da falha.'},
@@ -656,7 +659,7 @@ function renderMet(){
     <tr><td>Composição</td><td>Bioimpedância nas mesmas condições, ou DEXA</td><td>A cada 8–12 semanas</td></tr>
     </tbody></table></div></section>
   <section class="card bk"><h3>Backup dos registros</h3>
-    <p class="note">Os registros ficam só neste aparelho e navegador. Copie o backup de vez em quando e guarde numa nota; para levar a outro aparelho, cole lá e toque em Restaurar.</p>
+    <p class="note">Os registros ficam só neste aparelho e neste ícone. <b>Nunca apague o ícone da tela inicial</b>: no iPhone, isso apaga os registros junto. Para atualizar o app, use o aviso "Atualizar" que aparece no topo. Copie o backup toda semana e guarde numa nota; para levar a outro aparelho, cole lá e toque em Restaurar.</p>
     <div class="row"><button class="btn" type="button" id="bk-copy">Copiar backup</button></div>
     <textarea id="bk-text" placeholder="Cole aqui um backup para restaurar" aria-label="Texto do backup"></textarea>
     <div class="row"><button class="btn ghost" type="button" id="bk-restore">Restaurar backup</button></div>
@@ -695,6 +698,16 @@ document.getElementById('tstop').onclick=()=>{clearInterval(tInt);timer.hidden=t
 window.addEventListener('hashchange',route);
 (function(){let ok=false;try{localStorage.setItem('b2b-probe','1');ok=localStorage.getItem('b2b-probe')==='1';localStorage.removeItem('b2b-probe')}catch(e){}document.getElementById('storewarn').hidden=ok})();
 window.addEventListener('pagehide',()=>{const a=document.activeElement;if(a&&a.tagName==='INPUT')a.dispatchEvent(new Event('change',{bubbles:true}))});
+function reloadFresh(){location.replace(location.pathname+'?r='+Date.now()+location.hash)}
+async function checkUpdate(){
+  if(!/github\.io$/.test(location.hostname))return;
+  try{const r=await fetch(location.pathname+'?v='+Date.now(),{cache:'no-store'});if(!r.ok)return;
+    const m=(await r.text()).match(/const APP_VERSION='([^']+)'/);
+    if(m&&m[1]!==APP_VERSION)document.getElementById('updbar').hidden=false}catch(e){}
+}
+document.getElementById('upd-btn').onclick=reloadFresh;
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate()});
+checkUpdate();
 renderWeeks();route();
 </script>
 
