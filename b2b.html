@@ -104,6 +104,8 @@ main{padding-top:20px;display:grid;gap:20px}
 .chart .end{fill:var(--fg)}
 .chart text{fill:var(--muted);font-family:var(--font-mono);font-size:11px}
 .chart text.endlbl{fill:var(--fg);font-size:12px;font-weight:500}
+.sync{margin:2px 0 0;font-size:12px;color:var(--muted)}
+.sync.err{color:var(--push)}
 .updbar{margin:12px 0 0;padding:10px 12px;border-radius:8px;border:1.5px solid var(--fg);display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:14px}
 .storewarn{margin:12px 0 0;padding:10px 12px;border-radius:8px;border:1.5px solid var(--push);font-size:14px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -182,6 +184,7 @@ tr.cur td{background:var(--surface-2)}
       <div>
         <div class="label">Back to Best · Ficha D1–D5</div>
         <h1>B2B</h1>
+        <p class="sync" id="sync" aria-live="polite"></p>
       </div>
       <div>
         <div class="label" style="margin-bottom:4px">Semana do mesociclo</div>
@@ -199,6 +202,7 @@ tr.cur td{background:var(--surface-2)}
       <a href="#metricas" data-v="metricas">Métricas</a>
     </nav>
   </header>
+  <div class="updbar" id="cloudnote" hidden><span>Esta cópia salva os registros só neste aparelho. Para ficarem guardados na nuvem, use o B2B pelo Claude.</span><a class="btn" href="https://claude.ai/artifact/AUvo2LYBFxiy6xdNE4J7RR" target="_blank" rel="noopener">Abrir no Claude</a></div>
   <div class="updbar" id="updbar" hidden><span>Nova versão do B2B disponível. Seus registros continuam salvos.</span><button class="btn" type="button" id="upd-btn">Atualizar</button></div>
   <p class="storewarn" id="storewarn" hidden>Este navegador não está salvando os registros (modo privado ou armazenamento bloqueado). Abra o B2B pelo site brunnorborges.github.io/b2b.html num navegador normal.</p>
   <main id="app"></main>
@@ -214,7 +218,7 @@ tr.cur td{background:var(--surface-2)}
 </div>
 
 <script>
-const APP_VERSION='2026-11-04-2';
+const APP_VERSION='2026-11-04-3';
 const PLATE={push:'var(--push)',pull:'var(--pull)',legs:'var(--legs)',arms:'var(--arms)'};
 const WEEKS=[
   {n:1,label:'Calibração',comp:'3',iso:'2',tech:false,extra:0,txt:'Achar as cargas de trabalho depois de 6 meses sem progressão. Sem técnicas, longe da falha.'},
@@ -294,7 +298,63 @@ function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','
 
 // ---- Registro de cargas ----
 const LOG_KEY='b2b-log';
-function getLog(){return LS.get(LOG_KEY,{})}
+// ---- Nuvem (db do Claude) ----
+let DB=null,LOGMEM=null,CARDMEM=null,logSync=null,cardSync=null;
+function slug(s){return String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9_\-.~:@+]+/g,'-').replace(/^-+|-+$/g,'').slice(0,150)||'x'}
+function logDocId(n,d){return d+'__'+slug(n)}
+function normSets(a){return (Array.isArray(a)?a:[]).map(s=>({kg:s&&s.kg!=null?s.kg:'',r:s&&s.r!=null?s.r:'',ok:!!(s&&s.ok)}))}
+function normLog(b){return {n:String(b.n||''),d:String(b.d||''),w:b.w!=null?b.w:null,sets:normSets(b.sets)}}
+function normCardio(b){return {d:String(b.d||''),day:String(b.day||''),type:String(b.type||'Zona 2'),min:b.min!=null?b.min:'',km:b.km!=null?b.km:'',done:!!b.done}}
+function logToDocs(){const L=getLog(),m={};for(const n in L)for(const e of (L[n]||[]))m[logDocId(n,e.d)]=normLog({n,d:e.d,w:e.w,sets:e.sets});return m}
+function logFromDocs(docs){const L={};Object.values(docs).forEach(b=>{if(!b.n||!b.d)return;(L[b.n]=L[b.n]||[]).push({d:b.d,w:b.w,sets:b.sets})});return L}
+function cardToDocs(){const m={};getCardio().forEach(x=>{if(x&&x.id)m[x.id]=normCardio(x)});return m}
+function cardFromDocs(docs){return Object.entries(docs).map(([id,b])=>Object.assign({id},b))}
+let syncBusy=0;
+function syncState(st){const el=document.getElementById('sync');if(!el)return;el.classList.toggle('err',st==='err');
+  el.textContent={local:'Salvo só neste aparelho',loading:'Conectando à nuvem…',slow:'A nuvem está demorando. O que você anotar fica salvo neste aparelho enquanto isso.',ok:'☁ Salvo na nuvem',saving:'Salvando na nuvem…',err:'Não consegui salvar na nuvem agora. Seus registros estão guardados neste aparelho e sobem quando a conexão voltar.'}[st]||''}
+function makeSync(coll,norm,toDocs,fromDocs,apply){
+  const s={synced:{},t:null,busy:false,again:false,first:true};
+  s.schedule=()=>{if(!DB)return;clearTimeout(s.t);syncState('saving');s.t=setTimeout(()=>{s.t=null;s.flush()},600)};
+  s.flush=async()=>{if(s.busy){s.again=true;return}s.busy=true;syncBusy++;
+    let failed=false;
+    try{const cur=toDocs();
+      for(const id in cur){const j=JSON.stringify(cur[id]);if(s.synced[id]!==j){await DB.collection(coll).doc(id).set(cur[id]);s.synced[id]=j}}
+      for(const id of Object.keys(s.synced)){if(!(id in cur)){await DB.collection(coll).doc(id).delete();delete s.synced[id]}}
+    }catch(e){failed=true}
+    s.busy=false;syncBusy--;
+    if(failed){syncState('err');setTimeout(()=>s.flush(),15000);return}
+    if(s.again){s.again=false;s.flush();return}
+    if(!syncBusy)syncState('ok')};
+  s.start=onReady=>DB.collection(coll).onSnapshot(snap=>{
+      if(s.t||s.busy)return;
+      if(s.first&&snap.metadata.fromCache)return;
+      const docs={};snap.docs.forEach(d=>{docs[d.id]=norm(d.data()||{})});
+      if(s.first&&!snap.metadata.fromCache){s.first=false;
+        const local=toDocs();
+        if(!Object.keys(docs).length&&Object.keys(local).length){s.synced={};onReady();s.flush();return}
+      }
+      s.synced={};for(const id in docs)s.synced[id]=JSON.stringify(docs[id]);
+      apply(fromDocs(docs));if(!snap.metadata.fromCache)onReady()},
+    ()=>{syncState('err')});
+  return s;
+}
+function rerender(){const a=document.activeElement;if(a&&app.contains(a)&&a.matches('input,select,textarea'))return;const y=window.scrollY;route();window.scrollTo(0,y)}
+async function startCloud(){
+  let db=null;
+  try{db=window.claude&&typeof window.claude.use==='function'?await window.claude.use('db'):null}catch(e){db=null}
+  if(!db){syncState('local');if(/github\.io$/.test(location.hostname))document.getElementById('cloudnote').hidden=false;return}
+  DB=db;LOGMEM=LS.get(LOG_KEY,{});const c0=LS.get(CARDIO_KEY,[]);CARDMEM=Array.isArray(c0)?c0:[];
+  document.getElementById('storewarn').hidden=true;
+  syncState('loading');const tmo=setTimeout(()=>syncState('slow'),10000);
+  let ready=0;const onReady=()=>{ready++;if(ready===2){clearTimeout(tmo);if(!syncBusy)syncState('ok')}};
+  let r1=false,r2=false;
+  logSync=makeSync('log',normLog,logToDocs,logFromDocs,L=>{LOGMEM=L;LS.set(LOG_KEY,L);rerender()});
+  cardSync=makeSync('cardio',normCardio,cardToDocs,cardFromDocs,a=>{CARDMEM=a;LS.set(CARDIO_KEY,a);rerender()});
+  logSync.start(()=>{if(!r1){r1=true;onReady()}});
+  cardSync.start(()=>{if(!r2){r2=true;onReady()}});
+}
+function getLog(){return LOGMEM||LS.get(LOG_KEY,{})}
+function putLog(L){if(DB)LOGMEM=L;LS.set(LOG_KEY,L);if(logSync)logSync.schedule()}
 function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function fmtDate(s){const [y,m,d]=s.split('-');return d+'/'+m}
 function hasData(x){return x.sets.some(s=>s.kg||s.r)}
@@ -307,14 +367,14 @@ function saveSet(name,k,patch){
   if(!e){e={d:today(),w:week,sets:[]};arr.push(e)}
   while(e.sets.length<=k)e.sets.push({});
   Object.assign(e.sets[k],patch);e.w=week;
-  LS.set(LOG_KEY,L);
+  putLog(L);
 }
 function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 // ---- Registro de cardio ----
 const CARDIO_KEY='b2b-cardio';
 const CTYPES=['Zona 2','HIIT','Corrida ao ar livre','Caminhada ao ar livre','Bike','Outro'];
-function getCardio(){const a=LS.get(CARDIO_KEY,[]);return Array.isArray(a)?a:[]}
-function setCardio(a){LS.set(CARDIO_KEY,a)}
+function getCardio(){if(CARDMEM)return CARDMEM;const a=LS.get(CARDIO_KEY,[]);return Array.isArray(a)?a:[]}
+function setCardio(a){if(DB)CARDMEM=a;LS.set(CARDIO_KEY,a);if(cardSync)cardSync.schedule()}
 function cardioToday(day){return getCardio().find(x=>x.d===today()&&x.day===day)}
 function saveCardio(match,patch){
   const a=getCardio();
@@ -349,7 +409,7 @@ function wireCardio(id){
     document.getElementById('cardio-log').classList.toggle('cdone',on)};
 }
 
-function clearToday(names){const L=getLog();const t=today();names.forEach(n=>{if(L[n])L[n]=L[n].filter(x=>x.d!==t)});LS.set(LOG_KEY,L)}
+function clearToday(names){const L=getLog();const t=today();names.forEach(n=>{if(L[n])L[n]=L[n].filter(x=>x.d!==t)});putLog(L)}
 function e1rm(kg,r){return kg*(1+r/30)}
 function bestOf(x){let b=0;x.sets.forEach(s=>{const kg=+s.kg,r=+s.r;if(kg>0&&r>0)b=Math.max(b,e1rm(kg,r))});return b}
 function topKg(x){return Math.max(0,...x.sets.map(s=>+s.kg||0))}
@@ -461,11 +521,11 @@ function wireEditor(name,date){
     const d=read().filter(s=>s.kg!==''||s.r!=='').map(s=>({kg:s.kg===''?'':+s.kg,r:s.r===''?'':+s.r,ok:true}));
     const L=getLog();const arr=L[name]||[];const e=arr.find(x=>x.d===date);
     if(e){if(d.length)e.sets=d;else L[name]=arr.filter(x=>x.d!==date)}
-    LS.set(LOG_KEY,L);evoEdit=null;renderEvo()};
+    putLog(L);evoEdit=null;renderEvo()};
   document.getElementById('ed-cancel').onclick=()=>{evoEdit=null;renderEvo()};
   let armed=false;const del=document.getElementById('ed-del');
   del.onclick=()=>{if(!armed){armed=true;del.textContent='Toque de novo para apagar';setTimeout(()=>{armed=false;del.textContent='Apagar sessão'},4000);return}
-    const L=getLog();L[name]=(L[name]||[]).filter(x=>x.d!==date);LS.set(LOG_KEY,L);evoEdit=null;renderEvo()};
+    const L=getLog();L[name]=(L[name]||[]).filter(x=>x.d!==date);putLog(L);evoEdit=null;renderEvo()};
 }
 
 function renderEvo(){
@@ -659,7 +719,7 @@ function renderMet(){
     <tr><td>Composição</td><td>Bioimpedância nas mesmas condições, ou DEXA</td><td>A cada 8–12 semanas</td></tr>
     </tbody></table></div></section>
   <section class="card bk"><h3>Backup dos registros</h3>
-    <p class="note">Os registros ficam só neste aparelho e neste ícone. <b>Nunca apague o ícone da tela inicial</b>: no iPhone, isso apaga os registros junto. Para atualizar o app, use o aviso "Atualizar" que aparece no topo. Copie o backup toda semana e guarde numa nota; para levar a outro aparelho, cole lá e toque em Restaurar.</p>
+    ${DB?'<p class="note">Seus registros ficam salvos na nuvem, na sua conta do Claude, e aparecem em qualquer aparelho em que você abrir o B2B pelo Claude. O backup é só uma cópia extra.</p>':'<p class="note">Esta cópia salva os registros só neste aparelho. <b>Nunca apague o ícone da tela inicial</b>: no iPhone, isso apaga os registros junto. Copie o backup toda semana e guarde numa nota; para levar a outro aparelho, cole lá e toque em Restaurar.</p>'}
     <div class="row"><button class="btn" type="button" id="bk-copy">Copiar backup</button></div>
     <textarea id="bk-text" placeholder="Cole aqui um backup para restaurar" aria-label="Texto do backup"></textarea>
     <div class="row"><button class="btn ghost" type="button" id="bk-restore">Restaurar backup</button></div>
@@ -674,7 +734,7 @@ function renderMet(){
   let armed=false;const rb=document.getElementById('bk-restore');
   rb.onclick=()=>{let data;try{data=JSON.parse(ta.value);if(!data||typeof data!=='object'||Array.isArray(data))throw 0}catch(e){msg.textContent='Esse texto não é um backup válido do B2B. Copie de novo o backup completo.';return}
     if(!armed){armed=true;rb.textContent='Toque de novo para substituir os registros atuais';setTimeout(()=>{armed=false;rb.textContent='Restaurar backup'},5000);return}
-    if(data.app==='b2b'){if(data.log&&typeof data.log==='object')LS.set(LOG_KEY,data.log);if(Array.isArray(data.cardio))setCardio(data.cardio)}else LS.set(LOG_KEY,data);armed=false;rb.textContent='Restaurar backup';msg.textContent='Backup restaurado.'};
+    if(data.app==='b2b'){if(data.log&&typeof data.log==='object')putLog(data.log);if(Array.isArray(data.cardio))setCardio(data.cardio)}else putLog(data);armed=false;rb.textContent='Restaurar backup';msg.textContent='Backup restaurado.'};
 }
 
 function route(){
@@ -709,6 +769,7 @@ document.getElementById('upd-btn').onclick=reloadFresh;
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate()});
 checkUpdate();
 renderWeeks();route();
+startCloud();
 </script>
 
 </body>
