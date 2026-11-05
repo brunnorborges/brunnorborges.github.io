@@ -217,7 +217,7 @@ tr.cur td{background:var(--surface-2)}
 </div>
 
 <script>
-const APP_VERSION='2026-11-04-4';
+const APP_VERSION='2026-11-05-1';
 const PLATE={push:'var(--push)',pull:'var(--pull)',legs:'var(--legs)',arms:'var(--arms)'};
 const WEEKS=[
   {n:1,label:'Calibração',comp:'3',iso:'2',tech:false,extra:0,txt:'Achar as cargas de trabalho depois de 6 meses sem progressão. Sem técnicas, longe da falha.'},
@@ -382,7 +382,9 @@ function saveCardio(match,patch){
   Object.assign(e,patch);setCardio(a);return e;
 }
 function delCardio(id){setCardio(getCardio().filter(x=>x.id!==id))}
-function numVal(el){return el.value===''?'':+el.value}
+function parseNum(v){if(v==null)return '';v=String(v).replace(/\s/g,'').replace(',','.');if(v==='')return '';const n=parseFloat(v);return isFinite(n)?n:''}
+function fmtIn(v){return v===''||v==null?'':String(v).replace('.',',')}
+function numVal(el){return parseNum(el.value)}
 function cardioBlock(di,id,W){
   const c=CARDIO_DAY[di];let head,planType;
   if(!c){head=`<span class="label">Depois da musculação</span><h3>Sem cardio planejado</h3><p class="note">Dia de pernas pesado. Só mantenha a meta de passos. Se fizer algum cardio, registre aqui.</p>`;planType='Caminhada ao ar livre'}
@@ -392,9 +394,9 @@ function cardioBlock(di,id,W){
   return `<section class="cardio${c?'':' none'}${cur.done?' cdone':''}" id="cardio-log">${head}
     <div class="clog clog4">
       <div><label class="label" for="c-type">Tipo</label><select id="c-type">${CTYPES.map(t=>`<option ${t===type?'selected':''}>${t}</option>`).join('')}</select></div>
-      <div><label class="label" for="c-min">Tempo (min)</label><input id="c-min" type="number" inputmode="numeric" min="0" step="1" value="${cur.min??''}"></div>
-      <div><label class="label" for="c-km">Distância (km)</label><input id="c-km" type="number" inputmode="decimal" min="0" step="0.1" value="${cur.km??''}"></div>
-      <div><label class="label" for="c-inc">Inclinação (%)</label><input id="c-inc" type="number" inputmode="decimal" min="0" step="0.5" value="${cur.inc??''}"></div>
+      <div><label class="label" for="c-min">Tempo (min)</label><input id="c-min" type="text" autocomplete="off" inputmode="numeric" min="0" step="1" value="${fmtIn(cur.min)}"></div>
+      <div><label class="label" for="c-km">Distância (km)</label><input id="c-km" type="text" autocomplete="off" inputmode="decimal" min="0" step="0.1" value="${fmtIn(cur.km)}"></div>
+      <div><label class="label" for="c-inc">Inclinação (%)</label><input id="c-inc" type="text" autocomplete="off" inputmode="decimal" min="0" step="0.5" value="${fmtIn(cur.inc)}"></div>
     </div>
     <button type="button" class="btn${cur.done?'':' ghost'}" id="c-done" aria-pressed="${!!cur.done}">${cur.done?'✓ Cardio feito':'Marcar cardio como feito'}</button>
   </section>`;
@@ -467,8 +469,8 @@ function renderDay(id){
         ${Array.from({length:rows},(_,k)=>{const cur=(tdy&&tdy.sets[k])||{};const ref=(last&&last.sets[k])||{};
           return `<div class="setrow${cur.ok?' on':''}" data-k="${k}">
             <span class="n">${k+1}</span>
-            <input type="number" inputmode="decimal" step="0.5" min="0" id="kg-${id}-${i}-${k}" data-f="kg" value="${cur.kg??''}" placeholder="${ref.kg??''}" aria-label="Carga da série ${k+1}">
-            <input type="number" inputmode="numeric" step="1" min="0" id="r-${id}-${i}-${k}" data-f="r" value="${cur.r??''}" placeholder="${ref.r??''}" aria-label="Reps da série ${k+1}">
+            <input type="text" autocomplete="off" inputmode="decimal" step="0.5" min="0" id="kg-${id}-${i}-${k}" data-f="kg" value="${fmtIn(cur.kg)}" placeholder="${fmtIn(ref.kg)}" aria-label="Carga da série ${k+1}">
+            <input type="text" autocomplete="off" inputmode="numeric" step="1" min="0" id="r-${id}-${i}-${k}" data-f="r" value="${fmtIn(cur.r)}" placeholder="${fmtIn(ref.r)}" aria-label="Reps da série ${k+1}">
             <button type="button" class="ok" aria-label="Concluir série ${k+1}" aria-pressed="${!!cur.ok}">✓</button>
           </div>`}).join('')}
       </div>
@@ -479,12 +481,12 @@ function renderDay(id){
   app.querySelectorAll('.setgrid').forEach(g=>{
     const e=d.ex[+g.dataset.i];
     ['input','change'].forEach(evt=>g.addEventListener(evt,ev=>{const inp=ev.target.closest('input');if(!inp)return;const k=+inp.closest('.setrow').dataset.k;
-      const v=inp.value===''?'':+inp.value;saveSet(e.n,k,{[inp.dataset.f]:v})}));
+      const v=parseNum(inp.value);saveSet(e.n,k,{[inp.dataset.f]:v})}));
     g.addEventListener('click',ev=>{const b=ev.target.closest('.ok');if(!b)return;const row=b.closest('.setrow');const k=+row.dataset.k;
       const on=!row.classList.contains('on');const kgI=row.querySelector('[data-f="kg"]'),rI=row.querySelector('[data-f="r"]');
       const patch={ok:on};
-      if(on){if(kgI.value===''&&kgI.placeholder!=='')patch.kg=+kgI.placeholder;else if(kgI.value!=='')patch.kg=+kgI.value;
-             if(rI.value===''&&rI.placeholder!=='')patch.r=+rI.placeholder;else if(rI.value!=='')patch.r=+rI.value}
+      if(on){if(kgI.value===''&&kgI.placeholder!=='')patch.kg=parseNum(kgI.placeholder);else if(kgI.value!=='')patch.kg=parseNum(kgI.value);
+             if(rI.value===''&&rI.placeholder!=='')patch.r=parseNum(rI.placeholder);else if(rI.value!=='')patch.r=parseNum(rI.value)}
       saveSet(e.n,k,patch);if(on)startTimer(e.rest);
       const y=window.scrollY;renderDay(id);window.scrollTo(0,y)});
   });
@@ -496,13 +498,13 @@ function renderDay(id){
 }
 
 let evoEdit=null;
-function edRow(s,k){return `<div class="setrow" data-k="${k}"><span class="n">${k+1}</span><input type="number" inputmode="decimal" step="0.5" min="0" id="ed-kg-${k}" data-f="kg" value="${s.kg??''}" aria-label="Carga da série ${k+1}"><input type="number" inputmode="numeric" step="1" min="0" id="ed-r-${k}" data-f="r" value="${s.r??''}" aria-label="Reps da série ${k+1}"><button type="button" class="rm" aria-label="Remover série ${k+1}">×</button></div>`}
+function edRow(s,k){return `<div class="setrow" data-k="${k}"><span class="n">${k+1}</span><input type="text" autocomplete="off" inputmode="decimal" step="0.5" min="0" id="ed-kg-${k}" data-f="kg" value="${fmtIn(s.kg)}" aria-label="Carga da série ${k+1}"><input type="text" autocomplete="off" inputmode="numeric" step="1" min="0" id="ed-r-${k}" data-f="r" value="${fmtIn(s.r)}" aria-label="Reps da série ${k+1}"><button type="button" class="rm" aria-label="Remover série ${k+1}">×</button></div>`}
 function editorHTML(name,date){
   const x=entriesOf(name).find(e=>e.d===date);if(!x)return '';
   return `<section class="editor" id="ed"><h3>Editar sessão de ${fmtDate(date)}</h3>
     <div class="setgrid" id="ed-grid"><div class="setrow head"><span></span><span>Carga (kg)</span><span>Reps</span><span></span></div>${x.sets.map((s,k)=>edRow(s,k)).join('')}</div>
     <div class="row"><button class="btn ghost" type="button" id="ed-add">+ Série</button></div>
-    <div class="row plus"><label for="ed-plus">Somar a todas as séries</label><input id="ed-plus" type="number" inputmode="decimal" step="0.5" value="20"><span>kg</span><button class="btn ghost" type="button" id="ed-apply">Aplicar</button></div>
+    <div class="row plus"><label for="ed-plus">Somar a todas as séries</label><input id="ed-plus" type="text" autocomplete="off" inputmode="decimal" step="0.5" value="20"><span>kg</span><button class="btn ghost" type="button" id="ed-apply">Aplicar</button></div>
     <p class="note" id="ed-msg" aria-live="polite">Use "Somar" para incluir o peso da barra (20 kg) numa sessão anotada sem ela. Depois toque em Salvar.</p>
     <div class="row"><button class="btn" type="button" id="ed-save">Salvar</button><button class="btn ghost" type="button" id="ed-cancel">Cancelar</button><button class="btn ghost danger" type="button" id="ed-del">Apagar sessão</button></div>
   </section>`;
@@ -514,11 +516,11 @@ function wireEditor(name,date){
   const msg=document.getElementById('ed-msg');
   grid.addEventListener('click',ev=>{const b=ev.target.closest('.rm');if(!b)return;const d=read();d.splice(+b.closest('.setrow').dataset.k,1);paint(d)});
   document.getElementById('ed-add').onclick=()=>{const d=read();const l=d[d.length-1]||{};d.push({kg:l.kg||'',r:''});paint(d)};
-  document.getElementById('ed-apply').onclick=()=>{const n=+document.getElementById('ed-plus').value;if(!n)return;
-    paint(read().map(s=>({kg:s.kg===''?'':String(Math.round((+s.kg+n)*10)/10),r:s.r})));
+  document.getElementById('ed-apply').onclick=()=>{const n=parseNum(document.getElementById('ed-plus').value);if(!n)return;
+    paint(read().map(s=>({kg:s.kg===''?'':fmtIn(Math.round((parseNum(s.kg)+n)*10)/10),r:s.r})));
     msg.textContent=`Somados ${fmtKg(n)} kg a cada série. Confira e toque em Salvar.`};
   document.getElementById('ed-save').onclick=()=>{
-    const d=read().filter(s=>s.kg!==''||s.r!=='').map(s=>({kg:s.kg===''?'':+s.kg,r:s.r===''?'':+s.r,ok:true}));
+    const d=read().filter(s=>s.kg!==''||s.r!=='').map(s=>({kg:parseNum(s.kg),r:parseNum(s.r),ok:true}));
     const L=getLog();const arr=L[name]||[];const e=arr.find(x=>x.d===date);
     if(e){if(d.length)e.sets=d;else L[name]=arr.filter(x=>x.d!==date)}
     putLog(L);evoEdit=null;renderEvo()};
@@ -646,7 +648,7 @@ function renderCardio(){
   const tm=wk.reduce((a,x)=>a+(+x.min||0),0),tk=wk.reduce((a,x)=>a+(+x.km||0),0);
   const dayLbl=x=>{const i=DAYS.findIndex(d=>d.id===x.day);return i>=0?'D'+(i+1):'Avulso'};
   const opt=sel=>CTYPES.map(t=>`<option ${t===sel?'selected':''}>${t}</option>`).join('');
-  const rows=list.map(x=>cEdit===x.id?`<tr class="cur"><td><input type="date" id="ce-d" value="${x.d}" aria-label="Data"></td><td><select id="ce-t" aria-label="Tipo">${opt(x.type)}</select></td><td><input id="ce-m" type="number" inputmode="numeric" min="0" step="1" value="${x.min??''}" aria-label="Tempo em minutos"></td><td><input id="ce-k" type="number" inputmode="decimal" min="0" step="0.1" value="${x.km??''}" aria-label="Distância em km"></td><td><input id="ce-i" type="number" inputmode="decimal" min="0" step="0.5" value="${x.inc??''}" aria-label="Inclinação em %"></td><td>${dayLbl(x)}</td><td><div class="acts"><button class="btn" type="button" id="ce-save">Salvar</button><button class="btn ghost" type="button" id="ce-cancel">Cancelar</button><button class="btn ghost danger" type="button" id="ce-del">Apagar</button></div></td></tr>`
+  const rows=list.map(x=>cEdit===x.id?`<tr class="cur"><td><input type="date" id="ce-d" value="${x.d}" aria-label="Data"></td><td><select id="ce-t" aria-label="Tipo">${opt(x.type)}</select></td><td><input id="ce-m" type="text" autocomplete="off" inputmode="numeric" min="0" step="1" value="${fmtIn(x.min)}" aria-label="Tempo em minutos"></td><td><input id="ce-k" type="text" autocomplete="off" inputmode="decimal" min="0" step="0.1" value="${fmtIn(x.km)}" aria-label="Distância em km"></td><td><input id="ce-i" type="text" autocomplete="off" inputmode="decimal" min="0" step="0.5" value="${fmtIn(x.inc)}" aria-label="Inclinação em %"></td><td>${dayLbl(x)}</td><td><div class="acts"><button class="btn" type="button" id="ce-save">Salvar</button><button class="btn ghost" type="button" id="ce-cancel">Cancelar</button><button class="btn ghost danger" type="button" id="ce-del">Apagar</button></div></td></tr>`
     :`<tr><td class="mono">${fmtDate(x.d)}</td><td>${esc(x.type)}</td><td class="mono">${x.min!==''&&x.min!=null?fmtKg(+x.min)+' min':'–'}</td><td class="mono">${x.km!==''&&x.km!=null?fmtKg(+x.km)+' km':'–'}</td><td class="mono">${x.inc!==''&&x.inc!=null?fmtKg(+x.inc)+'%':'–'}</td><td>${dayLbl(x)}${x.done?'':' · não marcado'}</td><td><button class="linkbtn" type="button" data-ce="${x.id}">Editar</button></td></tr>`).join('');
   app.innerHTML=`
   <section class="prose"><h2>Cardio e passos</h2>
@@ -659,9 +661,9 @@ function renderCardio(){
     <div class="clog clog4">
       <div><label class="label" for="ca-d">Data</label><input type="date" id="ca-d" value="${t0}"></div>
       <div><label class="label" for="ca-t">Tipo</label><select id="ca-t">${opt('Corrida ao ar livre')}</select></div>
-      <div><label class="label" for="ca-m">Tempo (min)</label><input id="ca-m" type="number" inputmode="numeric" min="0" step="1"></div>
-      <div><label class="label" for="ca-k">Distância (km)</label><input id="ca-k" type="number" inputmode="decimal" min="0" step="0.1"></div>
-      <div><label class="label" for="ca-i">Inclinação (%)</label><input id="ca-i" type="number" inputmode="decimal" min="0" step="0.5"></div>
+      <div><label class="label" for="ca-m">Tempo (min)</label><input id="ca-m" type="text" autocomplete="off" inputmode="numeric" min="0" step="1"></div>
+      <div><label class="label" for="ca-k">Distância (km)</label><input id="ca-k" type="text" autocomplete="off" inputmode="decimal" min="0" step="0.1"></div>
+      <div><label class="label" for="ca-i">Inclinação (%)</label><input id="ca-i" type="text" autocomplete="off" inputmode="decimal" min="0" step="0.5"></div>
     </div>
     <div class="row"><button class="btn" type="button" id="ca-add">Adicionar</button><span class="note" id="ca-msg" aria-live="polite"></span></div>
   </section>
